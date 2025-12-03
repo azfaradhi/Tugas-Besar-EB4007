@@ -152,15 +152,3 @@ INSERT INTO wearable_data (patient_id, device_id, measurement_type, value, unit,
 (4, 'WATCH-004', 'blood_pressure', '115/75', 'mmHg', '2024-12-04 09:00:00', 'normal', NULL),
 (4, 'WATCH-004', 'temperature', '36.6', '°C', '2024-12-04 09:00:00', 'normal', NULL),
 (4, 'WATCH-004', 'steps', '7850', 'steps', '2024-12-04 18:00:00', 'normal', NULL);
-
--- Informasi kredensial untuk testing
--- ========================================
--- Semua user menggunakan password: "password123"
---
--- Login credentials:
--- Pasien: patient001, patient002, patient003, patient004
--- Staff Pendaftaran: staff_reg001, staff_reg002
--- Dokter: dr_andy, dr_budi, dr_clara
--- Staff Farmasi: pharmacy001, pharmacy002
--- Staff Lab: lab001, lab002
--- Staff Kasir: cashier001, cashier002

@@ -217,9 +217,9 @@ Ubah port di `package.json`:
 
 ## Kontributor
 
-- [Nama Anggota 1]
-- [Nama Anggota 2]
-- [Nama Anggota 3]
+- Mayla Yaffa L
+- Adinda Putri
+- Azfa Radhiyya Hakim
 
 ## Lisensi
 
