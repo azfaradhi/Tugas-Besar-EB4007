@@ -16,20 +16,6 @@ export default function Home() {
         >
           Masuk ke Sistem
         </Link>
-
-        <div className="mt-12 text-left max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold mb-4">Fitur Aplikasi:</h2>
-          <ul className="space-y-2 text-gray-700">
-            <li>✓ Sistem Login Multi-Role</li>
-            <li>✓ Pendaftaran Pasien</li>
-            <li>✓ Pemeriksaan Dokter & Rekam Medis</li>
-            <li>✓ Resep & Manajemen Farmasi</li>
-            <li>✓ Laboratorium & Hasil Tes</li>
-            <li>✓ Pembayaran & Kasir</li>
-            <li>✓ Monitoring Wearable Device</li>
-            <li>✓ Sistem Rujukan</li>
-          </ul>
-        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -102,6 +103,15 @@ export default function LoginPage() {
               {loading ? 'Memproses...' : 'Login'}
             </button>
           </div>
+
+          <div className="text-center">
+            <p className="text-sm text-gray-600">
+              Belum punya akun?{' '}
+              <Link href="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
+                Daftar di sini
+              </Link>
+            </p>
+          </div>
         </form>
 
         <div className="mt-6">
@@ -110,7 +120,7 @@ export default function LoginPage() {
               <div className="w-full border-t border-gray-300" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Demo Credentials</span>
+              <span className="px-2 bg-white text-gray-500">Akun untuk demo:</span>
             </div>
           </div>
 
