@@ -72,8 +72,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate appointment number
-    const appointment_number = `APT-${new Date().getFullYear()}-${Date.now()}`;
+    const [countResult]: any = await db.query(
+      'SELECT COUNT(*) as count FROM appointments WHERE DATE(created_at) = CURDATE()'
+    );
+    const todayCount = countResult[0].count;
+    const sequence = String(todayCount + 1).padStart(3, '0');
+
+    const year = new Date().getFullYear().toString().slice(-2);
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const day = String(new Date().getDate()).padStart(2, '0');
+
+    const appointment_number = `APT${year}${month}${day}${sequence}`;
 
     const [result] = await db.query(
       `INSERT INTO appointments
@@ -84,7 +93,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'Pendaftaran berhasil',
-      appointment_number
+      appointment_number,
+      appointment_id: (result as any).insertId
     });
   } catch (error) {
     console.error('Create appointment error:', error);
