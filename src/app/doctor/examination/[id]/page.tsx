@@ -294,9 +294,9 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   };
 
   return (
-    <div className=" p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-6">
-        <Link href="/doctor/dashboard" className="text-indigo-600 hover:text-indigo-800">
+        <Link href="/dashboard" className="text-indigo-600 hover:text-indigo-800">
           ← Kembali ke Dashboard
         </Link>
       </div>
@@ -529,7 +529,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       {/* Submit Button */}
       <div className="flex justify-end space-x-4">
         <Link
-          href="/doctor/dashboard"
+          href="/dashboard"
           className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
         >
           Batal

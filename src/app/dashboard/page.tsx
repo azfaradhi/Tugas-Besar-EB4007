@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
-import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
 import PatientDashboard from '@/components/dashboards/PatientDashboard';
 import DoctorDashboard from '@/components/dashboards/DoctorDashboard';
 import StaffRegistrationDashboard from '@/components/dashboards/StaffRegistrationDashboard';
@@ -47,9 +47,11 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar user={user} />
-      {dashboardComponent}
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <Sidebar user={user} />
+      <div className="flex-1 overflow-y-auto">
+        {dashboardComponent}
+      </div>
     </div>
   );
 }

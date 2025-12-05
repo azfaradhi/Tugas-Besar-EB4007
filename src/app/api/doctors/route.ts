@@ -1,11 +1,23 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 
+// GET - Mengambil data dokter
 export async function GET() {
   try {
-    const [doctors] = await db.query(
-      'SELECT * FROM doctors ORDER BY name ASC'
-    );
+    const [doctors] = await db.query(`
+      SELECT
+        d.*,
+        k.Nama,
+        k.NIK,
+        k.Tanggal_lahir,
+        k.Umur,
+        k.Jenis_kelamin,
+        k.No_telpon,
+        k.Alamat
+      FROM Dokter d
+      JOIN Karyawan k ON d.ID_karyawan = k.ID_karyawan
+      ORDER BY k.Nama ASC
+    `);
 
     return NextResponse.json({ doctors });
   } catch (error) {

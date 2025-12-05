@@ -1,44 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 
+// GET - Mengambil data pertemuan (appointments)
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const patientId = searchParams.get('patientId');
     const doctorId = searchParams.get('doctorId');
     const date = searchParams.get('date');
-    const appointmentId = searchParams.get('id');
+    const pertemuanId = searchParams.get('id');
 
     let query = `
       SELECT
-        a.*,
-        p.name as patient_name,
-        d.name as doctor_name
-      FROM appointments a
-      JOIN patients p ON a.patient_id = p.id
-      JOIN doctors d ON a.doctor_id = d.id
+        p.*,
+        pas.Nama as patient_name,
+        d.Spesialis as doctor_specialization,
+        k.Nama as doctor_name
+      FROM Pertemuan p
+      JOIN Pasien pas ON p.ID_Pasien = pas.ID_pasien
+      JOIN Dokter d ON p.ID_Dokter = d.ID_karyawan
+      JOIN Karyawan k ON d.ID_karyawan = k.ID_karyawan
     `;
 
     const conditions: string[] = [];
     const params: any[] = [];
 
-    if(appointmentId) {
-      conditions.push('a.id = ?');
-      params.push(appointmentId);
+    if (pertemuanId) {
+      conditions.push('p.ID_pertemuan = ?');
+      params.push(pertemuanId);
     }
 
     if (patientId) {
-      conditions.push('a.patient_id = ?');
+      conditions.push('p.ID_Pasien = ?');
       params.push(patientId);
     }
 
     if (doctorId) {
-      conditions.push('a.doctor_id = ?');
+      conditions.push('p.ID_Dokter = ?');
       params.push(doctorId);
     }
 
     if (date) {
-      conditions.push('a.appointment_date = ?');
+      conditions.push('p.Tanggal = ?');
       params.push(date);
     }
 
@@ -46,7 +49,7 @@ export async function GET(request: NextRequest) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    query += ' ORDER BY a.appointment_date DESC, a.appointment_time DESC';
+    query += ' ORDER BY p.Tanggal DESC, p.Waktu_mulai DESC';
 
     const [appointments] = await db.query(query, params);
 
@@ -60,41 +63,43 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST - Membuat pertemuan baru
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { patient_id, doctor_id, appointment_date, appointment_time, complaint, registered_by } = body;
+    console.log(body);
+    const { patient_id: ID_Pasien, doctor_id: ID_Dokter, ID_Perawat, ID_ruangan, appointment_date: Tanggal, appointment_time: Waktu_mulai, Waktu_selesai } = body;
 
-    if (!patient_id || !doctor_id || !appointment_date || !appointment_time) {
+    if (!ID_Pasien || !ID_Dokter || !Tanggal || !Waktu_mulai) {
       return NextResponse.json(
         { error: 'Data tidak lengkap' },
         { status: 400 }
       );
     }
 
+    // Generate ID_pertemuan
     const [countResult]: any = await db.query(
-      'SELECT COUNT(*) as count FROM appointments WHERE DATE(created_at) = CURDATE()'
+      'SELECT COUNT(*) as count FROM Pertemuan WHERE DATE(Tanggal) = CURDATE()'
     );
     const todayCount = countResult[0].count;
-    const sequence = String(todayCount + 1).padStart(3, '0');
+    const sequence = String(todayCount + 1).padStart(4, '0');
 
     const year = new Date().getFullYear().toString().slice(-2);
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const day = String(new Date().getDate()).padStart(2, '0');
 
-    const appointment_number = `APT${year}${month}${day}${sequence}`;
+    const ID_pertemuan = `PT${year}${month}${day}${sequence}`;
 
-    const [result] = await db.query(
-      `INSERT INTO appointments
-      (appointment_number, patient_id, doctor_id, appointment_date, appointment_time, complaint, registered_by, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled')`,
-      [appointment_number, patient_id, doctor_id, appointment_date, appointment_time, complaint, registered_by]
+    await db.query(
+      `INSERT INTO Pertemuan
+      (ID_pertemuan, ID_Pasien, ID_Dokter, ID_Perawat, ID_ruangan, Tanggal, Waktu_mulai, Waktu_selesai)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ID_pertemuan, ID_Pasien, ID_Dokter, ID_Perawat, ID_ruangan, Tanggal, Waktu_mulai, Waktu_selesai]
     );
 
     return NextResponse.json({
-      message: 'Pendaftaran berhasil',
-      appointment_number,
-      appointment_id: (result as any).insertId
+      message: 'Pertemuan berhasil dibuat',
+      ID_pertemuan
     });
   } catch (error) {
     console.error('Create appointment error:', error);
@@ -105,56 +110,73 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT - Update pertemuan
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, status } = body;
+    const { ID_pertemuan, Waktu_selesai, ID_Perawat, ID_ruangan } = body;
 
-    if (!id || !status) {
+    if (!ID_pertemuan) {
       return NextResponse.json(
-        { error: "ID dan status wajib dikirim." },
+        { error: "ID pertemuan wajib dikirim." },
         { status: 400 }
       );
     }
 
-    const allowedStatus = ["scheduled", "in_progress", "completed", "cancelled"];
-    if (!allowedStatus.includes(status)) {
+    const updateFields: string[] = [];
+    const params: any[] = [];
+
+    if (Waktu_selesai !== undefined) {
+      updateFields.push('Waktu_selesai = ?');
+      params.push(Waktu_selesai);
+    }
+
+    if (ID_Perawat !== undefined) {
+      updateFields.push('ID_Perawat = ?');
+      params.push(ID_Perawat);
+    }
+
+    if (ID_ruangan !== undefined) {
+      updateFields.push('ID_ruangan = ?');
+      params.push(ID_ruangan);
+    }
+
+    if (updateFields.length === 0) {
       return NextResponse.json(
-        { error: "Status tidak valid." },
+        { error: "Tidak ada data yang diupdate." },
         { status: 400 }
       );
     }
+
+    params.push(ID_pertemuan);
 
     const [result] = await db.query(
-      `UPDATE appointments
-       SET status = ?, updated_at = NOW()
-       WHERE id = ?`,
-      [status, id]
+      `UPDATE Pertemuan SET ${updateFields.join(', ')} WHERE ID_pertemuan = ?`,
+      params
     );
 
-    // Jika id tidak ditemukan
     // @ts-ignore
     if (result.affectedRows === 0) {
       return NextResponse.json(
-        { error: "Appointment tidak ditemukan." },
+        { error: "Pertemuan tidak ditemukan." },
         { status: 404 }
       );
     }
 
     const [rows]: any[] = await db.query(
       `SELECT
-        a.*,
-        p.name AS patient_name,
-        d.name AS doctor_name
-       FROM appointments a
-       JOIN patients p ON a.patient_id = p.id
-       JOIN doctors d ON a.doctor_id = d.id
-       WHERE a.id = ?`,
-      [id]
+        p.*,
+        pas.Nama as patient_name,
+        k.Nama as doctor_name
+       FROM Pertemuan p
+       JOIN Pasien pas ON p.ID_Pasien = pas.ID_pasien
+       JOIN Karyawan k ON p.ID_Dokter = k.ID_karyawan
+       WHERE p.ID_pertemuan = ?`,
+      [ID_pertemuan]
     );
 
     return NextResponse.json({
-      message: "Status berhasil diperbarui.",
+      message: "Pertemuan berhasil diperbarui.",
       appointment: rows[0],
     });
 
@@ -166,4 +188,3 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
-

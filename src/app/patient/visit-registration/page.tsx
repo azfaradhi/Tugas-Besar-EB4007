@@ -5,9 +5,18 @@ import { useRouter } from 'next/navigation';
 import { SessionUser } from '@/lib/auth';
 
 interface Doctor {
-  id: number;
-  name: string;
-  specialization: string;
+  Alamat: string | null;
+  ID_karyawan: string;
+  Jenis_kelamin: string;
+  NIK: string;
+  Nama: string;
+  No_telpon: string;
+  STR: string;
+  Shift: string | null;
+  Spesialis: string;
+  Status: string;
+  Tanggal_lahir: string;
+  Umur: number;
 }
 
 export default function VisitRegistrationPage() {
@@ -39,7 +48,10 @@ export default function VisitRegistrationPage() {
       const doctorsRes = await fetch('/api/doctors');
       if (doctorsRes.ok) {
         const doctorsData = await doctorsRes.json();
-        setDoctors(doctorsData.doctors || []);
+        console.log('Doctors API response:', doctorsData);
+        setDoctors(doctorsData.doctors || doctorsData || []);
+      } else {
+        console.error('Failed to fetch doctors:', doctorsRes.status, doctorsRes.statusText);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -47,6 +59,7 @@ export default function VisitRegistrationPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log(doctors);
     e.preventDefault();
 
     if (!user?.profileId) {
@@ -108,7 +121,7 @@ export default function VisitRegistrationPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-8 py-10">
@@ -178,8 +191,8 @@ export default function VisitRegistrationPage() {
                     >
                       <option value="">Pilih Dokter</option>
                       {doctors.map((doctor) => (
-                        <option key={doctor.id} value={doctor.id}>
-                          {doctor.name} - {doctor.specialization}
+                        <option key={doctor.ID_karyawan} value={doctor.ID_karyawan}>
+                          {doctor.Nama} - {doctor.Spesialis}
                         </option>
                       ))}
                     </select>
