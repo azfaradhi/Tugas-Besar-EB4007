@@ -13,6 +13,7 @@ export interface User {
   username: string;
   password: string;
   role: UserRole;
+  profile_id?: number;
   created_at: Date;
   updated_at: Date;
 }
