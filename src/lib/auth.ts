@@ -38,21 +38,21 @@ export async function login(username: string, password: string): Promise<Session
 
     if (user.role === 'patient') {
       const [patients] = await db.query<any[]>(
-        'SELECT id, name FROM patients WHERE user_id = ?',
+        'SELECT id_pasien, nama FROM pasien WHERE id_pasien = ?',
         [user.id]
       );
       if (patients.length > 0) {
-        profileId = patients[0].id;
-        profileName = patients[0].name;
+        profileId = patients[0].id_pasien;
+        profileName = patients[0].nama ;
       }
     } else if (user.role === 'doctor') {
       const [doctors] = await db.query<any[]>(
-        'SELECT id, name FROM doctors WHERE user_id = ?',
+        'SELECT dokter.id_karyawan, karyawan.nama FROM dokter JOIN karyawan ON dokter.id_karyawan = karyawan.id_karyawan WHERE dokter.id_karyawan = ?',
         [user.id]
       );
       if (doctors.length > 0) {
-        profileId = doctors[0].id;
-        profileName = doctors[0].name;
+        profileId = doctors[0].id_karyawan;
+        profileName = doctors[0].nama;
       }
     } else {
       const [staff] = await db.query<any[]>(
