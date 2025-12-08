@@ -22,14 +22,17 @@ interface Patient {
 }
 
 interface Appointment {
-  id: number;
-  patient_id: number;
-  doctor_id: number;
-  appointment_number: string;
-  appointment_date: string;
-  appointment_time: string;
-  complaint: string;
-  status: string;
+  ID_pertemuan: string;
+  ID_Pasien: string;
+  ID_Dokter: string;
+  ID_Perawat: string | null;
+  ID_ruangan: string | null;
+  Tanggal: string;
+  Waktu_mulai: string;
+  Waktu_selesai: string | null;
+  patient_name: string;
+  doctor_specialization: string;
+  doctor_name: string;
 }
 
 interface Medication {
@@ -124,7 +127,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
 
         setAppointment(appointmentObj);
 
-        const patientRes = await fetch(`/api/patients?id=${appointmentObj.patient_id}`);
+        const patientRes = await fetch(`/api/patients?id=${appointmentObj.ID_Pasien}`);
         if (patientRes.ok) {
           const patientData = await patientRes.json();
           const patientObj = patientData.patients?.[0];
@@ -203,7 +206,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           body: JSON.stringify({
             appointment_id: appointmentId,
             patient_id: patient?.id,
-            doctor_id: appointment?.doctor_id,
+            doctor_id: appointment?.ID_Dokter,
             diagnosis,
             symptoms,
             vital_signs: vitalSigns,
@@ -222,7 +225,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
 
       console.log("medicalRecordId:", medicalRecordId);
       console.log("patient?.id:", patient?.id);
-      console.log("appointment?.doctor_id:", appointment?.doctor_id);
+      console.log("appointment?.ID_Dokter:", appointment?.ID_Dokter);
       console.log("prescriptionItems:", prescriptionItems);
 
 
@@ -233,7 +236,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           body: JSON.stringify({
             medical_record_id: medicalRecordId,
             patient_id: patient?.id,
-            doctor_id: appointment?.doctor_id,
+            doctor_id: appointment?.ID_Dokter,
             items: prescriptionItems,
             status: 'pending'
           })
@@ -332,12 +335,13 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           <div>
             <p className="text-sm text-gray-600">Tanggal Kunjungan</p>
             <p className="font-semibold">
-              {new Date(appointment.appointment_date).toLocaleDateString('id-ID')} - {appointment.appointment_time}
+              {new Date(appointment.Tanggal).toLocaleDateString('id-ID')} - {appointment.Waktu_mulai}
             </p>
           </div>
           <div className="md:col-span-2">
             <p className="text-sm text-gray-600">Keluhan</p>
-            <p className="font-semibold">{appointment.complaint || '-'}</p>
+            {/* bentar ini blm dibenerin */}
+            <p className="font-semibold">{patient.address || '-'}</p> 
           </div>
         </div>
       </div>

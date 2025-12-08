@@ -9,14 +9,17 @@ interface DoctorDashboardProps {
 }
 
 interface Appointment {
-  id: number;
-  appointment_number: string;
+  ID_pertemuan: string;
+  ID_Pasien: string;
+  ID_Dokter: string;
+  ID_Perawat: string | null;
+  ID_ruangan: string | null;
+  Tanggal: string;
+  Waktu_mulai: string;
+  Waktu_selesai: string | null;
   patient_name: string;
-  patient_number: string;
-  appointment_date: string;
-  appointment_time: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-  complaint: string;
+  doctor_specialization: string;
+  doctor_name: string;
 }
 
 export default function DoctorDashboard({ user }: DoctorDashboardProps) {
@@ -73,15 +76,16 @@ export default function DoctorDashboard({ user }: DoctorDashboardProps) {
   today.setHours(0, 0, 0, 0);
 
   const todayAppointments = appointments.filter((apt) => {
-    const aptDate = new Date(apt.appointment_date);
-    aptDate.setHours(0, 0, 0, 0);
-    return aptDate.getTime() === today.getTime();
+    // Ambil tanggal string saja (YYYY-MM-DD)
+    const aptDateStr = apt.Tanggal.split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    return aptDateStr === todayStr;
   });
 
   const upcomingAppointments = appointments.filter((apt) => {
-    const aptDate = new Date(apt.appointment_date);
-    aptDate.setHours(0, 0, 0, 0);
-    return aptDate.getTime() > today.getTime();
+    const aptDateStr = apt.Tanggal.split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    return aptDateStr > todayStr;
   });
 
   const scheduledCount = appointments.filter(
@@ -238,7 +242,7 @@ export default function DoctorDashboard({ user }: DoctorDashboardProps) {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
-                            {new Date(apt.appointment_date).toLocaleDateString('id-ID', {
+                            {new Date(apt.Tanggal.split('T')[0]).toLocaleDateString('id-ID', {
                               weekday: 'long',
                               day: 'numeric',
                               month: 'long',
@@ -249,13 +253,13 @@ export default function DoctorDashboard({ user }: DoctorDashboardProps) {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            {apt.appointment_time}
+                            {apt.Tanggal.split('T')[1].slice(0,5)}
                           </span>
                         </div>
                       </div>
                       <Link
-                        href={`/doctor/examination/${apt.id}`}
-                        className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-800 transition duration-200"
+                        href={`/doctor/examination/${apt.ID_pertemuan}`}
+                        className="px-6 py-2.5 bg-linear-to-r from-blue-600 to-indigo-700 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-800 transition duration-200"
                       >
                         Periksa Pasien
                       </Link>
