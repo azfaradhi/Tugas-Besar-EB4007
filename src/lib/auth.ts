@@ -2,13 +2,19 @@ import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
 import db from './db';
 import { User } from '@/types';
+import { NextRequest } from 'next/server';
 
 export interface SessionUser {
   id: number;
   username: string;
   role: string;
-  profileId?: number;
+  profileId?: string;  // Changed from number to string (VARCHAR(20))
   profileName?: string;
+}
+
+export interface VerifyAuthResult {
+  isValid: boolean;
+  user?: SessionUser;
 }
 
 // Fungsi untuk login
@@ -32,40 +38,38 @@ export async function login(username: string, password: string): Promise<Session
       return null;
     }
 
-    console.log('DEBUUUGGGG User found during login:', user);
-    // Ambil data profile berdasarkan role
-    let profileId = undefined;
+    console.log('User found during login:', user);
+    // Ambil data profile berdasarkan role dari tabel yang sesuai
+    let profileId = user.profile_id;
     let profileName = undefined;
 
-    if (user.role === 'patient') {
+    if (user.role === 'patient' && profileId) {
+      // Query tabel Pasien berdasarkan profile_id
       const [patients] = await db.query<any[]>(
         'SELECT ID_pasien, Nama FROM Pasien WHERE ID_pasien = ?',
-        [user.profile_id]
+        [profileId]
       );
       if (patients.length > 0) {
-        profileId = patients[0].ID_pasien;
-        profileName = patients[0].Nama ;
+        profileName = patients[0].Nama;
       }
-    } else if (user.role === 'doctor') {
-      console.log('Looking for doctor with user.profile_id:', user.profile_id);
-      const [doctors] = await db.query<any[]>(
-        'SELECT dokter.ID_karyawan, karyawan.Nama FROM dokter JOIN karyawan ON dokter.ID_karyawan = karyawan.ID_karyawan WHERE dokter.ID_karyawan = ?',
-        [user.profile_id]
+    } else if (user.role === 'doctor' && profileId) {
+      // Query tabel Karyawan untuk dokter berdasarkan profile_id
+      const [karyawan] = await db.query<any[]>(
+        'SELECT k.ID_karyawan, k.Nama FROM Karyawan k JOIN Dokter d ON k.ID_karyawan = d.ID_karyawan WHERE k.ID_karyawan = ?',
+        [profileId]
       );
-      console.log('Doctors found:', doctors);
-      await new Promise(resolve => setTimeout(resolve, 10000)); // Tambahkan delay untuk debugging
-      if (doctors.length > 0) {
-        profileId = doctors[0].ID_karyawan;
-        profileName = doctors[0].Nama;
+      if (karyawan.length > 0) {
+        profileName = karyawan[0].Nama;
       }
-    } else {
-      const [staff] = await db.query<any[]>(
-        'SELECT id, name FROM staff WHERE user_id = ?',
-        [user.profile_id]
+    } else if (profileId) {
+      // staff_registration, staff_pharmacy, staff_lab, staff_cashier
+      // Query tabel Karyawan, Operasional, atau Resepsionis
+      const [karyawan] = await db.query<any[]>(
+        'SELECT ID_karyawan, Nama FROM Karyawan WHERE ID_karyawan = ?',
+        [profileId]
       );
-      if (staff.length > 0) {
-        profileId = staff[0].id;
-        profileName = staff[0].name;
+      if (karyawan.length > 0) {
+        profileName = karyawan[0].Nama;
       }
     }
 
@@ -123,4 +127,20 @@ export async function logout() {
 // Fungsi untuk hash password (untuk registrasi)
 export async function hashPassword(password: string): Promise<string> {
   return await bcrypt.hash(password, 10);
+}
+
+// Fungsi untuk verify auth dari request
+export async function verifyAuth(request: NextRequest): Promise<VerifyAuthResult> {
+  try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return { isValid: false };
+    }
+
+    return { isValid: true, user };
+  } catch (error) {
+    console.error('Verify auth error:', error);
+    return { isValid: false };
+  }
 }

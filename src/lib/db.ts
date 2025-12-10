@@ -9,10 +9,20 @@ const pool = mysql.createPool({
   port: parseInt(process.env.DB_PORT || '3306'),
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  timezone: '+07:00' // Set timezone to WIB (UTC+7)
 });
 
-// Test koneksi database
+export async function query(sql: string, params?: any[]) {
+  try {
+    const [rows] = await pool.execute(sql, params);
+    return rows;
+  } catch (error) {
+    console.error('Database query error:', error);
+    throw error;
+  }
+}
+
 export async function testConnection() {
   try {
     const connection = await pool.getConnection();
@@ -25,5 +35,4 @@ export async function testConnection() {
   }
 }
 
-// Export pool untuk digunakan di API routes
 export default pool;
