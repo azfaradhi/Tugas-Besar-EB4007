@@ -3,10 +3,10 @@ import { getCurrentUser } from '@/lib/auth';
 import Sidebar from '@/components/Sidebar';
 import PatientDashboard from '@/components/dashboards/PatientDashboard';
 import DoctorDashboard from '@/components/dashboards/DoctorDashboard';
-import StaffRegistrationDashboard from '@/components/dashboards/StaffRegistrationDashboard';
-import StaffPharmacyDashboard from '@/components/dashboards/StaffPharmacyDashboard';
-import StaffLabDashboard from '@/components/dashboards/StaffLabDashboard';
-import StaffCashierDashboard from '@/components/dashboards/StaffCashierDashboard';
+import RegistrationDashboard from '@/components/dashboards/RegistrationDashboard';
+import PharmacyDashboard from '@/components/dashboards/PharmacyDashboard';
+import LabDashboard from '@/components/dashboards/LabDashboard';
+import CashierDashboard from '@/components/dashboards/CashierDashboard';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -25,16 +25,16 @@ export default async function DashboardPage() {
       dashboardComponent = <DoctorDashboard user={user} />;
       break;
     case 'staff_registration':
-      dashboardComponent = <StaffRegistrationDashboard user={user} />;
+      dashboardComponent = <RegistrationDashboard user={user} />;
       break;
     case 'staff_pharmacy':
-      dashboardComponent = <StaffPharmacyDashboard user={user} />;
+      dashboardComponent = <PharmacyDashboard user={user} />;
       break;
     case 'staff_lab':
-      dashboardComponent = <StaffLabDashboard user={user} />;
+      dashboardComponent = <LabDashboard user={user} />;
       break;
     case 'staff_cashier':
-      dashboardComponent = <StaffCashierDashboard user={user} />;
+      dashboardComponent = <CashierDashboard user={user} />;
       break;
     default:
       dashboardComponent = (
