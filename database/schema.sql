@@ -1,21 +1,26 @@
--- Database Schema untuk Sistem Informasi Kesehatan
+-- ================================================================================
+-- DATABASE SCHEMA - SISTEM INFORMASI KESEHATAN
 -- EB4007 - Tugas Besar
-
+-- ================================================================================
+SET time_zone = '+07:00';
 -- Drop tables if exists
-DROP TABLE IF EXISTS wearable_data;
-DROP TABLE IF EXISTS referrals;
-DROP TABLE IF EXISTS payment_items;
-DROP TABLE IF EXISTS payments;
-DROP TABLE IF EXISTS lab_results;
-DROP TABLE IF EXISTS lab_tests;
-DROP TABLE IF EXISTS prescription_items;
-DROP TABLE IF EXISTS prescriptions;
-DROP TABLE IF EXISTS medications;
-DROP TABLE IF EXISTS medical_records;
-DROP TABLE IF EXISTS appointments;
-DROP TABLE IF EXISTS staff;
-DROP TABLE IF EXISTS doctors;
-DROP TABLE IF EXISTS patients;
+DROP TABLE IF EXISTS UrinTest;
+DROP TABLE IF EXISTS Ronsen;
+DROP TABLE IF EXISTS Hasil_Obat;
+DROP TABLE IF EXISTS Hasil_Pemeriksaan;
+DROP TABLE IF EXISTS Billing;
+DROP TABLE IF EXISTS Pertemuan;
+DROP TABLE IF EXISTS Perawat;
+DROP TABLE IF EXISTS Jadwal_Praktik;
+DROP TABLE IF EXISTS Departemen;
+DROP TABLE IF EXISTS Resepsionis;
+DROP TABLE IF EXISTS Operasional;
+DROP TABLE IF EXISTS Dokter;
+DROP TABLE IF EXISTS Karyawan;
+DROP TABLE IF EXISTS Pasien;
+DROP TABLE IF EXISTS Obat;
+DROP TABLE IF EXISTS Ruangan;
+DROP TABLE IF EXISTS Gedung;
 DROP TABLE IF EXISTS users;
 
 -- Tabel Users (untuk autentikasi)
@@ -24,251 +29,195 @@ CREATE TABLE users (
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role ENUM('patient', 'staff_registration', 'doctor', 'staff_pharmacy', 'staff_lab', 'staff_cashier') NOT NULL,
+    profile_id VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Tabel Patients
-CREATE TABLE patients (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT UNIQUE,
-    patient_number VARCHAR(20) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    date_of_birth DATE NOT NULL,
-    gender ENUM('male', 'female') NOT NULL,
-    blood_type ENUM('A', 'B', 'AB', 'O', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'),
-    phone VARCHAR(15),
-    email VARCHAR(100),
-    address TEXT,
-    emergency_contact VARCHAR(100),
-    emergency_phone VARCHAR(15),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+-- Tabel Pasien
+CREATE TABLE Pasien (
+    ID_pasien VARCHAR(20) PRIMARY KEY,
+    Nama VARCHAR(100) NOT NULL,
+    NIK CHAR(16) UNIQUE NOT NULL,
+    Tanggal_lahir DATETIME NOT NULL,
+    Umur INT,
+    Jenis_kelamin ENUM('Laki-laki', 'Perempuan') NOT NULL,
+    No_telpon VARCHAR(15),
+    Alamat VARCHAR(255),
+    Golongan_darah VARCHAR(5),
+    Riwayat_penyakit TEXT,
+    Nama_ibu_kandung VARCHAR(100)
 );
 
--- Tabel Doctors
-CREATE TABLE doctors (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT UNIQUE,
-    doctor_number VARCHAR(20) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    specialization VARCHAR(100) NOT NULL,
-    license_number VARCHAR(50) UNIQUE NOT NULL,
-    phone VARCHAR(15),
-    email VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+-- Tabel Karyawan
+CREATE TABLE Karyawan (
+    ID_karyawan VARCHAR(20) PRIMARY KEY,
+    Nama VARCHAR(100) NOT NULL,
+    NIK CHAR(16) UNIQUE NOT NULL,
+    Tanggal_lahir DATETIME NOT NULL,
+    Umur INT,
+    Jenis_kelamin ENUM('Laki-laki', 'Perempuan') NOT NULL,
+    No_telpon VARCHAR(15),
+    Alamat VARCHAR(255)
 );
 
--- Tabel Staff
-CREATE TABLE staff (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT UNIQUE,
-    staff_number VARCHAR(20) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    position ENUM('registration', 'pharmacy', 'laboratory', 'cashier') NOT NULL,
-    phone VARCHAR(15),
-    email VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+-- Tabel Dokter (inheritance dari Karyawan)
+CREATE TABLE Dokter (
+    ID_karyawan VARCHAR(20) PRIMARY KEY,
+    Spesialis VARCHAR(100),
+    STR VARCHAR(50) UNIQUE,
+    Status VARCHAR(20),
+    Shift VARCHAR(20),
+    FOREIGN KEY (ID_karyawan) REFERENCES Karyawan(ID_karyawan) ON DELETE CASCADE
 );
 
--- Tabel Appointments (Pendaftaran)
-CREATE TABLE appointments (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    appointment_number VARCHAR(20) UNIQUE NOT NULL,
-    patient_id INT NOT NULL,
-    doctor_id INT NOT NULL,
-    appointment_date DATE NOT NULL,
-    appointment_time TIME NOT NULL,
-    status ENUM('scheduled', 'in_progress', 'completed', 'cancelled') DEFAULT 'scheduled',
-    complaint TEXT,
-    registered_by INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE,
-    FOREIGN KEY (registered_by) REFERENCES staff(id) ON DELETE SET NULL
+-- Tabel Operasional (inheritance dari Karyawan)
+CREATE TABLE Operasional (
+    ID_karyawan VARCHAR(20) PRIMARY KEY,
+    FOREIGN KEY (ID_karyawan) REFERENCES Karyawan(ID_karyawan) ON DELETE CASCADE
 );
 
--- Tabel Medical Records (Rekam Medis)
-CREATE TABLE medical_records (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    appointment_id INT NOT NULL,
-    patient_id INT NOT NULL,
-    doctor_id INT NOT NULL,
-    diagnosis TEXT NOT NULL,
-    symptoms TEXT,
-    vital_signs JSON,
-    notes TEXT,
-    treatment_plan TEXT,
-    status ENUM('active', 'completed', 'referred') DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
+-- Tabel Resepsionis (inheritance dari Karyawan)
+CREATE TABLE Resepsionis (
+    ID_karyawan VARCHAR(20) PRIMARY KEY,
+    FOREIGN KEY (ID_karyawan) REFERENCES Karyawan(ID_karyawan) ON DELETE CASCADE
 );
 
--- Tabel Medications (Data Obat)
-CREATE TABLE medications (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    code VARCHAR(20) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    unit VARCHAR(20) NOT NULL,
-    stock INT DEFAULT 0,
-    price DECIMAL(10, 2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+-- Tabel Departemen
+CREATE TABLE Departemen (
+    ID_Department VARCHAR(20) PRIMARY KEY,
+    Nama VARCHAR(100) NOT NULL
 );
 
--- Tabel Prescriptions (Resep)
-CREATE TABLE prescriptions (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    prescription_number VARCHAR(20) UNIQUE NOT NULL,
-    medical_record_id INT NOT NULL,
-    patient_id INT NOT NULL,
-    doctor_id INT NOT NULL,
-    status ENUM('pending', 'prepared', 'dispensed', 'completed') DEFAULT 'pending',
-    notes TEXT,
-    prepared_by INT,
-    prepared_at TIMESTAMP NULL,
-    dispensed_at TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (medical_record_id) REFERENCES medical_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE,
-    FOREIGN KEY (prepared_by) REFERENCES staff(id) ON DELETE SET NULL
+-- Tabel Gedung
+CREATE TABLE Gedung (
+    ID_gedung VARCHAR(20) PRIMARY KEY,
+    Nama VARCHAR(100) NOT NULL,
+    Latitude VARCHAR(50),
+    Longitude VARCHAR(50)
 );
 
--- Tabel Prescription Items (Detail Resep)
-CREATE TABLE prescription_items (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    prescription_id INT NOT NULL,
-    medication_id INT NOT NULL,
-    quantity INT NOT NULL,
-    dosage VARCHAR(100) NOT NULL,
-    frequency VARCHAR(100) NOT NULL,
-    duration VARCHAR(50) NOT NULL,
-    instructions TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (prescription_id) REFERENCES prescriptions(id) ON DELETE CASCADE,
-    FOREIGN KEY (medication_id) REFERENCES medications(id) ON DELETE CASCADE
+-- Tabel Ruangan
+CREATE TABLE Ruangan (
+    ID_ruangan VARCHAR(20) PRIMARY KEY,
+    ID_gedung VARCHAR(20),
+    Lantai INT,
+    FOREIGN KEY (ID_gedung) REFERENCES Gedung(ID_gedung) ON DELETE SET NULL
 );
 
--- Tabel Lab Tests (Pemeriksaan Lab)
-CREATE TABLE lab_tests (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    test_number VARCHAR(20) UNIQUE NOT NULL,
-    medical_record_id INT NOT NULL,
-    patient_id INT NOT NULL,
-    test_type VARCHAR(100) NOT NULL,
-    status ENUM('pending', 'in_progress', 'completed', 'cancelled') DEFAULT 'pending',
-    ordered_by INT NOT NULL,
-    processed_by INT,
-    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (medical_record_id) REFERENCES medical_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    FOREIGN KEY (ordered_by) REFERENCES doctors(id) ON DELETE CASCADE,
-    FOREIGN KEY (processed_by) REFERENCES staff(id) ON DELETE SET NULL
+-- Tabel Perawat
+CREATE TABLE Perawat (
+    ID_perawat VARCHAR(20) PRIMARY KEY,
+    Nama VARCHAR(100) NOT NULL,
+    NIK CHAR(16) UNIQUE NOT NULL,
+    Kontak VARCHAR(15),
+    Shift VARCHAR(20)
 );
 
--- Tabel Lab Results (Hasil Lab)
-CREATE TABLE lab_results (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    lab_test_id INT NOT NULL,
-    parameter VARCHAR(100) NOT NULL,
-    result VARCHAR(255) NOT NULL,
-    unit VARCHAR(50),
-    reference_range VARCHAR(100),
-    status ENUM('normal', 'abnormal', 'critical'),
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (lab_test_id) REFERENCES lab_tests(id) ON DELETE CASCADE
+-- Tabel Jadwal Praktik
+CREATE TABLE Jadwal_Praktik (
+    ID_jadwal VARCHAR(20) PRIMARY KEY,
+    Date DATETIME NOT NULL
 );
 
--- Tabel Payments (Pembayaran)
-CREATE TABLE payments (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    payment_number VARCHAR(20) UNIQUE NOT NULL,
-    patient_id INT NOT NULL,
-    appointment_id INT,
-    total_amount DECIMAL(10, 2) NOT NULL,
-    payment_method ENUM('cash', 'debit', 'credit', 'transfer', 'insurance') NOT NULL,
-    payment_status ENUM('pending', 'paid', 'cancelled') DEFAULT 'pending',
-    paid_at TIMESTAMP NULL,
-    processed_by INT,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE SET NULL,
-    FOREIGN KEY (processed_by) REFERENCES staff(id) ON DELETE SET NULL
+-- Tabel Pertemuan
+CREATE TABLE Pertemuan (
+    ID_pertemuan VARCHAR(20) PRIMARY KEY,
+    ID_Pasien VARCHAR(20) NOT NULL,
+    ID_Dokter VARCHAR(20) NOT NULL,
+    ID_Perawat VARCHAR(20),
+    ID_ruangan VARCHAR(20),
+    Tanggal DATE NOT NULL,
+    Waktu_mulai TIME NOT NULL,
+    Waktu_selesai TIME,
+    status ENUM('scheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
+    FOREIGN KEY (ID_Pasien) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE,
+    FOREIGN KEY (ID_Dokter) REFERENCES Dokter(ID_karyawan) ON DELETE CASCADE,
+    FOREIGN KEY (ID_Perawat) REFERENCES Perawat(ID_perawat) ON DELETE SET NULL,
+    FOREIGN KEY (ID_ruangan) REFERENCES Ruangan(ID_ruangan) ON DELETE SET NULL
 );
 
--- Tabel Payment Items (Detail Pembayaran)
-CREATE TABLE payment_items (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    payment_id INT NOT NULL,
-    item_type ENUM('consultation', 'medication', 'lab_test', 'procedure', 'other') NOT NULL,
-    description VARCHAR(255) NOT NULL,
-    quantity INT DEFAULT 1,
-    unit_price DECIMAL(10, 2) NOT NULL,
-    subtotal DECIMAL(10, 2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE
+-- Tabel Obat
+CREATE TABLE Obat (
+    ID_obat VARCHAR(20) PRIMARY KEY,
+    Nama VARCHAR(100) NOT NULL,
+    Kategori ENUM('Kapsul', 'Tablet', 'Cair', 'Injeksi', 'Salep', 'Lainnya')
 );
 
--- Tabel Referrals (Rujukan)
-CREATE TABLE referrals (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    referral_number VARCHAR(20) UNIQUE NOT NULL,
-    medical_record_id INT NOT NULL,
-    patient_id INT NOT NULL,
-    referring_doctor_id INT NOT NULL,
-    referred_to VARCHAR(255) NOT NULL,
-    specialization VARCHAR(100),
-    reason TEXT NOT NULL,
+-- Tabel Hasil Pemeriksaan
+CREATE TABLE Hasil_Pemeriksaan (
+    ID_hasil VARCHAR(20) PRIMARY KEY,
+    ID_pertemuan VARCHAR(20) NOT NULL,
     diagnosis TEXT,
+    symptoms TEXT,
+    vital_signs TEXT,
+    treatment_plan TEXT,
     notes TEXT,
-    status ENUM('pending', 'accepted', 'completed', 'cancelled') DEFAULT 'pending',
-    referral_date DATE NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (medical_record_id) REFERENCES medical_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    FOREIGN KEY (referring_doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
+    status ENUM('draft', 'completed') DEFAULT 'completed',
+    FOREIGN KEY (ID_pertemuan) REFERENCES Pertemuan(ID_pertemuan) ON DELETE CASCADE
 );
 
--- Tabel Wearable Data (Data dari Wearable Device)
-CREATE TABLE wearable_data (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    patient_id INT NOT NULL,
-    device_id VARCHAR(50),
-    measurement_type ENUM('heart_rate', 'blood_pressure', 'temperature', 'oxygen_saturation', 'steps', 'sleep', 'calories') NOT NULL,
-    value VARCHAR(50) NOT NULL,
-    unit VARCHAR(20),
-    measured_at TIMESTAMP NOT NULL,
-    status ENUM('normal', 'warning', 'critical') DEFAULT 'normal',
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
-    INDEX idx_patient_measured (patient_id, measured_at),
-    INDEX idx_measurement_type (measurement_type)
+-- Tabel relasi many-to-many antara Hasil_Pemeriksaan dan Obat
+CREATE TABLE Hasil_Obat (
+    ID_hasil VARCHAR(20),
+    ID_Obat VARCHAR(20),
+    PRIMARY KEY (ID_hasil, ID_Obat),
+    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE,
+    FOREIGN KEY (ID_Obat) REFERENCES Obat(ID_obat) ON DELETE CASCADE
+);
+
+-- Tabel Ronsen
+CREATE TABLE Ronsen (
+    ID_ronsen VARCHAR(20) PRIMARY KEY,
+    ID_hasil VARCHAR(20) NOT NULL,
+    imgSrc VARCHAR(255),
+    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE
+);
+
+-- Tabel UrinTest
+CREATE TABLE UrinTest (
+    ID_uji VARCHAR(20) PRIMARY KEY,
+    ID_hasil VARCHAR(20) NOT NULL,
+    Warna ENUM('Kuning Muda', 'Kuning', 'Kuning Tua', 'Merah', 'Coklat', 'Lainnya'),
+    pH FLOAT,
+    Protein ENUM('Negatif', 'Trace', '+1', '+2', '+3', '+4'),
+    Glukosa ENUM('Negatif', 'Trace', '+1', '+2', '+3', '+4'),
+    Ketone ENUM('Negatif', 'Trace', '+1', '+2', '+3'),
+    Bilirubin ENUM('Negatif', '+1', '+2', '+3'),
+    Urobilin ENUM('Negatif', 'Normal', '+1', '+2', '+3'),
+    Hemoglobin ENUM('Negatif', 'Trace', '+1', '+2', '+3'),
+    Sel_darah_putih ENUM('0-5', '5-10', '10-20', '>20'),
+    Sel_darah_merah ENUM('0-3', '3-5', '5-10', '>10'),
+    Bakteri ENUM('Negatif', '+1', '+2', '+3'),
+    Sel_epitheal ENUM('Sedikit', 'Sedang', 'Banyak'),
+    Crystals ENUM('Negatif', 'Oksalat', 'Urat', 'Fosfat', 'Lainnya'),
+    Casts ENUM('Negatif', 'Hialin', 'Granuler', 'Eritrosit', 'Leukosit'),
+    Organisme_terisolasi VARCHAR(100),
+    Antimicrobial ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Trimethoprim ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Cefuroxime ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Amoxycillin_Clavulanic_acid ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Cephalexin ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Nitrofurantoin ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Ciprofloxacin ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Doxycycline ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Gentamicin ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE
+);
+
+-- Tabel Billing
+CREATE TABLE Billing (
+    ID_billing VARCHAR(20) PRIMARY KEY,
+    ID_pasien VARCHAR(20) NOT NULL,
+    Lunas_date DATE,
+    Jenis_pembayaran ENUM('Credit', 'Debit', 'Cash'),
+    isLunas BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (ID_pasien) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE
 );
 
 -- Indexes untuk performa
-CREATE INDEX idx_appointments_date ON appointments(appointment_date);
-CREATE INDEX idx_appointments_status ON appointments(status);
-CREATE INDEX idx_medical_records_patient ON medical_records(patient_id);
-CREATE INDEX idx_prescriptions_status ON prescriptions(status);
-CREATE INDEX idx_lab_tests_status ON lab_tests(status);
-CREATE INDEX idx_payments_status ON payments(payment_status);
+CREATE INDEX idx_pertemuan_pasien ON Pertemuan(ID_Pasien);
+CREATE INDEX idx_pertemuan_dokter ON Pertemuan(ID_Dokter);
+CREATE INDEX idx_pertemuan_tanggal ON Pertemuan(Tanggal);
+CREATE INDEX idx_billing_pasien ON Billing(ID_pasien);
+CREATE INDEX idx_hasil_pertemuan ON Hasil_Pemeriksaan(ID_pertemuan);
