@@ -141,8 +141,11 @@ CREATE TABLE Pertemuan (
 CREATE TABLE Obat (
     ID_obat VARCHAR(20) PRIMARY KEY,
     Nama VARCHAR(100) NOT NULL,
-    Kategori ENUM('Kapsul', 'Tablet', 'Cair', 'Injeksi', 'Salep', 'Lainnya')
+    Kategori ENUM('Kapsul', 'Tablet', 'Cair', 'Injeksi', 'Salep', 'Lainnya'),
+    Aturan_pakai VARCHAR(100),
+    Harga_satuan DECIMAL(15,2)
 );
+
 
 -- Tabel Hasil Pemeriksaan
 CREATE TABLE Hasil_Pemeriksaan (
@@ -159,8 +162,12 @@ CREATE TABLE Hasil_Pemeriksaan (
 
 -- Tabel relasi many-to-many antara Hasil_Pemeriksaan dan Obat
 CREATE TABLE Hasil_Obat (
-    ID_hasil VARCHAR(20),
-    ID_Obat VARCHAR(20),
+    ID_hasil VARCHAR(20) NOT NULL,
+    ID_Obat VARCHAR(20) NOT NULL,
+    Dosis VARCHAR(50),
+    Frekuensi VARCHAR(50),
+    Durasi_hari INT,
+    Qty INT,
     PRIMARY KEY (ID_hasil, ID_Obat),
     FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE,
     FOREIGN KEY (ID_Obat) REFERENCES Obat(ID_obat) ON DELETE CASCADE
