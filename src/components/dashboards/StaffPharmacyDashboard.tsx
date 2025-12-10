@@ -18,18 +18,20 @@ export default function StaffPharmacyDashboard({ user }: StaffPharmacyDashboardP
 
   const fetchData = async () => {
     try {
-      const [prescRes, medRes] = await Promise.all([
-        fetch('/api/prescriptions'),
-        fetch('/api/medications'),
+      const [hasilRes, medRes] = await Promise.all([
+        fetch('/api/hasil-pemeriksaan'),
+        fetch('/api/obat'),
       ]);
 
-      if (prescRes.ok) {
-        const data = await prescRes.json();
-        setPrescriptions(data.prescriptions || []);
+      if (hasilRes.ok) {
+        const data = await hasilRes.json();
+        // Filter only hasil pemeriksaan with medications
+        const withMeds = (data.hasil_pemeriksaan || []).filter((h: any) => h.obat && h.obat.length > 0);
+        setPrescriptions(withMeds);
       }
       if (medRes.ok) {
         const data = await medRes.json();
-        setMedications(data.medications || []);
+        setMedications(data.obats || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);

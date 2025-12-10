@@ -37,9 +37,9 @@ export default function StaffCashierDashboard({ user }: StaffCashierDashboardPro
     );
   }
 
-  const pendingPayments = payments.filter((p) => p.payment_status === 'pending');
-  const paidPayments = payments.filter((p) => p.payment_status === 'paid');
-  const totalRevenue = paidPayments.reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
+  const pendingPayments = payments.filter((p) => !p.isLunas);
+  const paidPayments = payments.filter((p) => p.isLunas);
+  const totalPayments = payments.length;
 
   return (
     <div className="p-8">
@@ -59,11 +59,11 @@ export default function StaffCashierDashboard({ user }: StaffCashierDashboardPro
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Pendapatan</h3>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Transaksi</h3>
           <p className="text-3xl font-bold text-indigo-600">
-            Rp {totalRevenue.toLocaleString('id-ID')}
+            {totalPayments}
           </p>
-          <p className="text-sm text-gray-500">Dari transaksi lunas</p>
+          <p className="text-sm text-gray-500">Semua transaksi billing</p>
         </div>
       </div>
 
@@ -77,16 +77,16 @@ export default function StaffCashierDashboard({ user }: StaffCashierDashboardPro
               <thead>
                 <tr className="bg-gray-50">
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    No. Pembayaran
+                    ID Billing
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Nama Pasien
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total
+                    NIK
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tanggal
+                    Metode Pembayaran
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Aksi
@@ -95,18 +95,18 @@ export default function StaffCashierDashboard({ user }: StaffCashierDashboardPro
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {pendingPayments.map((payment: any) => (
-                  <tr key={payment.id}>
+                  <tr key={payment.ID_billing}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {payment.payment_number}
+                      {payment.ID_billing}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {payment.patient_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      Rp {parseFloat(payment.total_amount).toLocaleString('id-ID')}
+                      {payment.NIK}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(payment.created_at).toLocaleDateString('id-ID')}
+                      {payment.Jenis_pembayaran}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <button className="text-indigo-600 hover:text-indigo-900">Proses</button>

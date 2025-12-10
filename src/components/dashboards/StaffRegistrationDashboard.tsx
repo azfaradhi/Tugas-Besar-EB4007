@@ -21,18 +21,18 @@ export default function StaffRegistrationDashboard({ user }: StaffRegistrationDa
   const fetchData = async () => {
     try {
       const [apptRes, patientsRes, doctorsRes] = await Promise.all([
-        fetch('/api/appointments'),
-        fetch('/api/patients'),
+        fetch('/api/pertemuan'),
+        fetch('/api/pasien'),
         fetch('/api/doctors'),
       ]);
 
       if (apptRes.ok) {
         const data = await apptRes.json();
-        setAppointments(data.appointments || []);
+        setAppointments(data.pertemuans || []);
       }
       if (patientsRes.ok) {
         const data = await patientsRes.json();
-        setPatients(data.patients || []);
+        setPatients(data.pasiens || []);
       }
       if (doctorsRes.ok) {
         const data = await doctorsRes.json();
