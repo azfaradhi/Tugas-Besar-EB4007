@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -10,11 +11,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    // Verify reCAPTCHA
+    const recaptchaValue = recaptchaRef.current?.getValue();
+    if (!recaptchaValue) {
+      setError('Mohon verifikasi bahwa Anda bukan robot');
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -22,7 +32,11 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ 
+          username, 
+          password,
+          recaptchaToken: recaptchaValue 
+        }),
       });
 
       const data = await response.json();
@@ -30,6 +44,7 @@ export default function LoginPage() {
       if (!response.ok) {
         setError(data.error || 'Login gagal');
         setLoading(false);
+        recaptchaRef.current?.reset();
         return;
       }
 
@@ -38,6 +53,7 @@ export default function LoginPage() {
     } catch (err) {
       setError('Terjadi kesalahan. Silakan coba lagi.');
       setLoading(false);
+      recaptchaRef.current?.reset();
     }
   };
 
@@ -92,6 +108,14 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="flex justify-center my-4">
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'}
+              theme="light"
+            />
           </div>
 
           <div>

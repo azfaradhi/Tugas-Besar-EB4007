@@ -5,18 +5,14 @@ import { useRouter } from 'next/navigation';
 import { SessionUser } from '@/lib/auth';
 
 interface Doctor {
-  Alamat: string | null;
   ID_karyawan: string;
-  Jenis_kelamin: string;
-  NIK: string;
   Nama: string;
-  No_telpon: string;
-  STR: string;
-  Shift: string | null;
   Spesialis: string;
-  Status: string;
-  Tanggal_lahir: string;
-  Umur: number;
+  STR?: string;
+  Status?: string;
+  Shift?: string;
+  NIK?: string;
+  No_telpon?: string;
 }
 
 export default function VisitRegistrationPage() {
@@ -25,12 +21,11 @@ export default function VisitRegistrationPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [formData, setFormData] = useState({
-    doctor_id: '',
-    appointment_date: '',
-    appointment_time: '',
-    complaint: '',
-    payment_method: 'cash',
-    insurance_number: '',
+    ID_Dokter: '',
+    Tanggal: '',
+    Waktu_mulai: '',
+    Jenis_pembayaran: 'Tunai',
+    No_BPJS: '',
   });
 
   useEffect(() => {
@@ -59,7 +54,6 @@ export default function VisitRegistrationPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log(doctors);
     e.preventDefault();
 
     if (!user?.profileId) {
@@ -68,7 +62,7 @@ export default function VisitRegistrationPage() {
       return;
     }
 
-    if (!formData.doctor_id || !formData.appointment_date || !formData.appointment_time || !formData.complaint) {
+    if (!formData.ID_Dokter || !formData.Tanggal || !formData.Waktu_mulai) {
       alert('Mohon lengkapi semua data yang wajib diisi');
       return;
     }
@@ -77,27 +71,37 @@ export default function VisitRegistrationPage() {
 
     try {
       const appointmentPayload = {
-        patient_id: user.profileId,
-        doctor_id: parseInt(formData.doctor_id),
-        appointment_date: formData.appointment_date,
-        appointment_time: formData.appointment_time,
-        complaint: formData.complaint.trim(),
-        registered_by: user.profileId,
+        ID_Pasien: user.profileId,
+        ID_Dokter: formData.ID_Dokter,
+        Tanggal: formData.Tanggal,
+        Waktu_mulai: formData.Waktu_mulai + ':00',
       };
 
-      const res = await fetch('/api/appointments', {
+      const appointmentRes = await fetch('/api/pertemuan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(appointmentPayload),
       });
 
-      const data = await res.json();
+      const appointmentData = await appointmentRes.json();
 
-      if (res.ok) {
-        alert(`Pendaftaran berhasil!\n\nNomor Pendaftaran: ${data.appointment_number}\n\nHarap datang 15 menit sebelum jadwal kunjungan.`);
+      if (appointmentRes.ok) {
+        const billingPayload = {
+          ID_pasien: user.profileId,
+          Jenis_pembayaran: formData.Jenis_pembayaran,
+          isLunas: false,
+        };
+
+        await fetch('/api/billing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(billingPayload),
+        });
+
+        alert(`Pendaftaran berhasil!\n\nNomor Pendaftaran: ${appointmentData.ID_pertemuan}\n\nHarap datang 15 menit sebelum jadwal kunjungan.`);
         router.push('/dashboard');
       } else {
-        alert(data.error || 'Gagal melakukan pendaftaran. Silakan coba lagi.');
+        alert(appointmentData.error || 'Gagal melakukan pendaftaran. Silakan coba lagi.');
       }
     } catch (error) {
       console.error('Error submitting appointment:', error);
@@ -114,10 +118,32 @@ export default function VisitRegistrationPage() {
     });
   };
 
-  const getTomorrowDate = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  const getAvailableTimeSlots = () => {
+    const allTimeSlots = [
+      '08:00', '09:00', '10:00', '11:00',
+      '13:00', '14:00', '15:00', '16:00', '17:00'
+    ];
+
+    // Jika tidak ada tanggal dipilih atau tanggal dipilih bukan hari ini, tampilkan semua
+    if (!formData.Tanggal || formData.Tanggal !== getTodayDate()) {
+      return allTimeSlots;
+    }
+
+    // Jika tanggal dipilih adalah hari ini, filter hanya jam setelah waktu sekarang
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    return allTimeSlots.filter(timeSlot => {
+      const [hour] = timeSlot.split(':').map(Number);
+      // Tambahkan buffer 1 jam untuk persiapan
+      return hour > currentHour + 1 || (hour === currentHour + 1 && currentMinute === 0);
+    });
   };
 
   return (
@@ -138,53 +164,65 @@ export default function VisitRegistrationPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="appointment_date" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="Tanggal" className="block text-sm font-medium text-gray-700 mb-2">
                       Tanggal Kunjungan <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
-                      id="appointment_date"
-                      name="appointment_date"
-                      min={getTomorrowDate()}
-                      value={formData.appointment_date}
-                      onChange={handleChange}
+                      id="Tanggal"
+                      name="Tanggal"
+                      min={getTodayDate()}
+                      value={formData.Tanggal}
+                      onChange={(e) => {
+                        handleChange(e);
+                        // Reset waktu ketika tanggal berubah
+                        setFormData(prev => ({ ...prev, Waktu_mulai: '' }));
+                      }}
                       required
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-gray-900"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="appointment_time" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="Waktu_mulai" className="block text-sm font-medium text-gray-700 mb-2">
                       Jam Kunjungan <span className="text-red-500">*</span>
                     </label>
                     <select
-                      id="appointment_time"
-                      name="appointment_time"
-                      value={formData.appointment_time}
+                      id="Waktu_mulai"
+                      name="Waktu_mulai"
+                      value={formData.Waktu_mulai}
                       onChange={handleChange}
                       required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-gray-900"
+                      disabled={!formData.Tanggal}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
-                      <option value="">Pilih Jam</option>
-                      <option value="08:00">08:00</option>
-                      <option value="09:00">09:00</option>
-                      <option value="10:00">10:00</option>
-                      <option value="11:00">11:00</option>
-                      <option value="13:00">13:00</option>
-                      <option value="14:00">14:00</option>
-                      <option value="15:00">15:00</option>
-                      <option value="16:00">16:00</option>
+                      <option value="">
+                        {!formData.Tanggal ? 'Pilih tanggal terlebih dahulu' : 'Pilih Jam'}
+                      </option>
+                      {getAvailableTimeSlots().map(time => (
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
+                      ))}
+                      {formData.Tanggal === getTodayDate() && getAvailableTimeSlots().length === 0 && (
+                        <option value="" disabled>Tidak ada slot waktu tersedia hari ini</option>
+                      )}
                     </select>
+                    {formData.Tanggal === getTodayDate() && (
+                      <p className="mt-2 text-sm text-blue-600">
+                        Untuk pendaftaran hari ini, hanya menampilkan jam yang tersedia setelah waktu saat ini
+                      </p>
+                    )}
                   </div>
 
                   <div className="md:col-span-2">
-                    <label htmlFor="doctor_id" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="ID_Dokter" className="block text-sm font-medium text-gray-700 mb-2">
                       Pilih Dokter <span className="text-red-500">*</span>
                     </label>
                     <select
-                      id="doctor_id"
-                      name="doctor_id"
-                      value={formData.doctor_id}
+                      id="ID_Dokter"
+                      name="ID_Dokter"
+                      value={formData.ID_Dokter}
                       onChange={handleChange}
                       required
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-gray-900"
@@ -198,21 +236,6 @@ export default function VisitRegistrationPage() {
                     </select>
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label htmlFor="complaint" className="block text-sm font-medium text-gray-700 mb-2">
-                      Keluhan Utama <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      id="complaint"
-                      name="complaint"
-                      rows={4}
-                      value={formData.complaint}
-                      onChange={handleChange}
-                      placeholder="Jelaskan keluhan yang Anda rasakan..."
-                      required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 resize-none text-gray-900 placeholder:text-gray-400"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -223,35 +246,35 @@ export default function VisitRegistrationPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="payment_method" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="Jenis_pembayaran" className="block text-sm font-medium text-gray-700 mb-2">
                       Cara Pembayaran <span className="text-red-500">*</span>
                     </label>
                     <select
-                      id="payment_method"
-                      name="payment_method"
-                      value={formData.payment_method}
+                      id="Jenis_pembayaran"
+                      name="Jenis_pembayaran"
+                      value={formData.Jenis_pembayaran}
                       onChange={handleChange}
                       required
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-gray-900"
                     >
-                      <option value="cash">Umum/Tunai</option>
-                      <option value="insurance">BPJS Kesehatan</option>
-                      <option value="debit">Kartu Debit</option>
-                      <option value="credit">Kartu Kredit</option>
-                      <option value="transfer">Transfer Bank</option>
+                      <option value="Tunai">Umum/Tunai</option>
+                      <option value="BPJS">BPJS Kesehatan</option>
+                      <option value="Debit">Kartu Debit</option>
+                      <option value="Kredit">Kartu Kredit</option>
+                      <option value="Transfer">Transfer Bank</option>
                     </select>
                   </div>
 
-                  {formData.payment_method === 'insurance' && (
+                  {formData.Jenis_pembayaran === 'BPJS' && (
                     <div>
-                      <label htmlFor="insurance_number" className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="No_BPJS" className="block text-sm font-medium text-gray-700 mb-2">
                         No. BPJS
                       </label>
                       <input
                         type="text"
-                        id="insurance_number"
-                        name="insurance_number"
-                        value={formData.insurance_number}
+                        id="No_BPJS"
+                        name="No_BPJS"
+                        value={formData.No_BPJS}
                         onChange={handleChange}
                         placeholder="Masukkan nomor BPJS"
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 text-gray-900 placeholder:text-gray-400"
