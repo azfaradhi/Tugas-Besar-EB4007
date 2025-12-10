@@ -3,13 +3,32 @@ import { login, setSessionCookie } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json();
+    const { username, password, recaptchaToken } = await request.json();
 
     if (!username || !password) {
       return NextResponse.json(
         { error: 'Username dan password harus diisi' },
         { status: 400 }
       );
+    }
+
+    // Verify reCAPTCHA (optional for development)
+    if (recaptchaToken && process.env.RECAPTCHA_SECRET_KEY) {
+      const verifyUrl = `https://www.google.com/recaptcha/api/siteverify`;
+      const verifyResponse = await fetch(verifyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${recaptchaToken}`
+      });
+
+      const verifyData = await verifyResponse.json();
+      
+      if (!verifyData.success) {
+        return NextResponse.json(
+          { error: 'Verifikasi CAPTCHA gagal. Mohon coba lagi.' },
+          { status: 400 }
+        );
+      }
     }
 
     const user = await login(username, password);

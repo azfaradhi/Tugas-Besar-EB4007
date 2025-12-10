@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     // Get last patient number for this month
     const [lastPatients] = await db.query<any[]>(
-      'SELECT patient_number FROM patients WHERE patient_number LIKE ? ORDER BY id DESC LIMIT 1',
+      'SELECT patient_number FROM pasien WHERE patient_number LIKE ? ORDER BY id DESC LIMIT 1',
       [`P${year}${month}%`]
     );
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     // Insert patient
     await db.query(
-      `INSERT INTO patients
+      `INSERT INTO pasien
        (user_id, patient_number, name, date_of_birth, gender, blood_type, phone, email, address, emergency_contact, emergency_phone)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [

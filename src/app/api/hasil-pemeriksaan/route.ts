@@ -1,0 +1,270 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { query } from '@/lib/db';
+import { verifyAuth } from '@/lib/auth';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const pertemuanId = searchParams.get('pertemuanId');
+    const patientId = searchParams.get('patientId');
+
+    let sql = `
+      SELECT
+        hp.*,
+        p.ID_Pasien,
+        p.ID_Dokter,
+        p.Tanggal as tanggal_pertemuan,
+        pas.Nama as nama_pasien,
+        k.Nama as nama_dokter,
+        d.Spesialis
+      FROM Hasil_Pemeriksaan hp
+      LEFT JOIN Pertemuan p ON hp.ID_pertemuan = p.ID_pertemuan
+      LEFT JOIN Pasien pas ON p.ID_Pasien = pas.ID_pasien
+      LEFT JOIN Dokter d ON p.ID_Dokter = d.ID_karyawan
+      LEFT JOIN Karyawan k ON d.ID_karyawan = k.ID_karyawan
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (id) {
+      sql += ' AND hp.ID_hasil = ?';
+      params.push(id);
+    }
+
+    if (pertemuanId) {
+      sql += ' AND hp.ID_pertemuan = ?';
+      params.push(pertemuanId);
+    }
+
+    if (patientId) {
+      sql += ' AND p.ID_Pasien = ?';
+      params.push(patientId);
+    }
+
+    sql += ' ORDER BY p.Tanggal DESC';
+
+    const results = await query(sql, params);
+
+    for (const result of results) {
+      const obatResult = await query(
+        `SELECT ho.*, o.Nama, o.Kategori
+         FROM Hasil_Obat ho
+         LEFT JOIN Obat o ON ho.ID_Obat = o.ID_obat
+         WHERE ho.ID_hasil = ?`,
+        [result.ID_hasil]
+      );
+      result.obat = obatResult;
+
+      const ronsenResult = await query(
+        `SELECT * FROM Ronsen WHERE ID_hasil = ?`,
+        [result.ID_hasil]
+      );
+      result.ronsen = ronsenResult;
+
+      const urinResult = await query(
+        `SELECT * FROM UrinTest WHERE ID_hasil = ?`,
+        [result.ID_hasil]
+      );
+      result.urin_test = urinResult.length > 0 ? urinResult[0] : null;
+    }
+
+    return NextResponse.json({
+      success: true,
+      hasil_pemeriksaan: results
+    });
+  } catch (error) {
+    console.error('Error fetching hasil pemeriksaan:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch hasil pemeriksaan' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const auth = await verifyAuth(request);
+    if (!auth.isValid) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { 
+      ID_pertemuan, 
+      diagnosis, 
+      symptoms, 
+      vital_signs, 
+      treatment_plan, 
+      notes, 
+      status, 
+      obat, 
+      ronsen, 
+      urin_test 
+    } = body;
+
+    if (!ID_pertemuan) {
+      return NextResponse.json(
+        { error: 'ID_pertemuan is required' },
+        { status: 400 }
+      );
+    }
+
+    const countResult: any = await query(
+      'SELECT COUNT(*) as count FROM Hasil_Pemeriksaan'
+    );
+    const count = countResult[0].count;
+    const ID_hasil = `HP${String(count + 1).padStart(6, '0')}`;
+
+    await query(
+      `INSERT INTO Hasil_Pemeriksaan 
+       (ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs, treatment_plan, notes, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs, treatment_plan, notes, status || 'completed']
+    );
+
+    if (obat && Array.isArray(obat) && obat.length > 0) {
+      for (const item of obat) {
+        await query(
+          'INSERT INTO Hasil_Obat (ID_hasil, ID_Obat) VALUES (?, ?)',
+          [ID_hasil, item.ID_Obat]
+        );
+      }
+    }
+
+    if (ronsen && Array.isArray(ronsen) && ronsen.length > 0) {
+      for (const item of ronsen) {
+        const ronsenCount: any = await query(
+          'SELECT COUNT(*) as count FROM Ronsen'
+        );
+        const ID_ronsen = `R${String(ronsenCount[0].count + 1).padStart(6, '0')}`;
+
+        await query(
+          'INSERT INTO Ronsen (ID_ronsen, ID_hasil, imgSrc) VALUES (?, ?, ?)',
+          [ID_ronsen, ID_hasil, item.imgSrc]
+        );
+      }
+    }
+
+    if (urin_test) {
+      const urinCount: any = await query(
+        'SELECT COUNT(*) as count FROM UrinTest'
+      );
+      const ID_uji = `UT${String(urinCount[0].count + 1).padStart(6, '0')}`;
+
+      const fields = Object.keys(urin_test).filter(k => k !== 'ID_uji');
+      const values = fields.map(k => urin_test[k]);
+
+      await query(
+        `INSERT INTO UrinTest (ID_uji, ID_hasil, ${fields.join(', ')})
+         VALUES (?, ?, ${fields.map(() => '?').join(', ')})`,
+        [ID_uji, ID_hasil, ...values]
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      ID_hasil,
+      message: 'Hasil pemeriksaan created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating hasil pemeriksaan:', error);
+    return NextResponse.json(
+      { error: 'Failed to create hasil pemeriksaan' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const auth = await verifyAuth(request);
+    if (!auth.isValid) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { ID_hasil, obat, ronsen, urin_test } = body;
+
+    if (!ID_hasil) {
+      return NextResponse.json(
+        { error: 'ID_hasil is required' },
+        { status: 400 }
+      );
+    }
+
+    if (obat !== undefined) {
+      await query('DELETE FROM Hasil_Obat WHERE ID_hasil = ?', [ID_hasil]);
+
+      if (Array.isArray(obat) && obat.length > 0) {
+        for (const item of obat) {
+          await query(
+            'INSERT INTO Hasil_Obat (ID_hasil, ID_Obat) VALUES (?, ?)',
+            [ID_hasil, item.ID_Obat]
+          );
+        }
+      }
+    }
+
+    if (ronsen !== undefined) {
+      await query('DELETE FROM Ronsen WHERE ID_hasil = ?', [ID_hasil]);
+
+      if (Array.isArray(ronsen) && ronsen.length > 0) {
+        for (const item of ronsen) {
+          const ronsenCount: any = await query(
+            'SELECT COUNT(*) as count FROM Ronsen'
+          );
+          const ID_ronsen = `R${String(ronsenCount[0].count + 1).padStart(6, '0')}`;
+
+          await query(
+            'INSERT INTO Ronsen (ID_ronsen, ID_hasil, imgSrc) VALUES (?, ?, ?)',
+            [ID_ronsen, ID_hasil, item.imgSrc]
+          );
+        }
+      }
+    }
+
+    if (urin_test !== undefined) {
+      const existing: any = await query(
+        'SELECT ID_uji FROM UrinTest WHERE ID_hasil = ?',
+        [ID_hasil]
+      );
+
+      if (existing.length > 0) {
+        const fields = Object.keys(urin_test).filter(k => k !== 'ID_uji' && k !== 'ID_hasil');
+        const setParts = fields.map(k => `${k} = ?`);
+        const values = fields.map(k => urin_test[k]);
+
+        await query(
+          `UPDATE UrinTest SET ${setParts.join(', ')} WHERE ID_uji = ?`,
+          [...values, existing[0].ID_uji]
+        );
+      } else {
+        const urinCount: any = await query(
+          'SELECT COUNT(*) as count FROM UrinTest'
+        );
+        const ID_uji = `UT${String(urinCount[0].count + 1).padStart(6, '0')}`;
+
+        const fields = Object.keys(urin_test).filter(k => k !== 'ID_uji');
+        const values = fields.map(k => urin_test[k]);
+
+        await query(
+          `INSERT INTO UrinTest (ID_uji, ID_hasil, ${fields.join(', ')})
+           VALUES (?, ?, ${fields.map(() => '?').join(', ')})`,
+          [ID_uji, ID_hasil, ...values]
+        );
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Hasil pemeriksaan updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating hasil pemeriksaan:', error);
+    return NextResponse.json(
+      { error: 'Failed to update hasil pemeriksaan' },
+      { status: 500 }
+    );
+  }
+}
