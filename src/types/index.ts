@@ -13,200 +13,163 @@ export interface User {
   username: string;
   password: string;
   role: UserRole;
-  profile_id?: number;
+  profile_id?: string;  // Changed to string (VARCHAR(20))
   created_at: Date;
   updated_at: Date;
 }
 
 export interface Patient {
-  id: number;
-  user_id?: number;
-  patient_number: string;
-  name: string;
-  date_of_birth: Date;
-  gender: 'male' | 'female';
-  blood_type?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  emergency_contact?: string;
-  emergency_phone?: string;
-  created_at: Date;
-  updated_at: Date;
+  ID_pasien: string;  // VARCHAR(20) PRIMARY KEY
+  Nama: string;
+  NIK: string;  // CHAR(16)
+  Tanggal_lahir: Date;
+  Umur?: number;
+  Jenis_kelamin: 'Laki-laki' | 'Perempuan';
+  No_telpon?: string;
+  Alamat?: string;
+  Golongan_darah?: string;
+  Riwayat_penyakit?: string;
+  Nama_ibu_kandung?: string;
 }
 
-export interface Doctor {
-  id: number;
-  user_id?: number;
-  doctor_number: string;
-  name: string;
-  specialization: string;
-  license_number: string;
-  phone?: string;
-  email?: string;
-  created_at: Date;
-  updated_at: Date;
+// Karyawan base interface
+export interface Karyawan {
+  ID_karyawan: string;  // VARCHAR(20) PRIMARY KEY
+  Nama: string;
+  NIK: string;  // CHAR(16)
+  Tanggal_lahir: Date;
+  Umur?: number;
+  Jenis_kelamin: 'Laki-laki' | 'Perempuan';
+  No_telpon?: string;
+  Alamat?: string;
 }
 
-export interface Staff {
-  id: number;
-  user_id?: number;
-  staff_number: string;
-  name: string;
-  position: 'registration' | 'pharmacy' | 'laboratory' | 'cashier';
-  phone?: string;
-  email?: string;
-  created_at: Date;
-  updated_at: Date;
+// Doctor extends Karyawan
+export interface Doctor extends Karyawan {
+  Spesialis?: string;
+  STR?: string;  // Surat Tanda Registrasi
+  Status?: string;
+  Shift?: string;
 }
 
+// Staff types (Operasional, Resepsionis)
+export interface Operasional {
+  ID_karyawan: string;  // References Karyawan
+}
+
+export interface Resepsionis {
+  ID_karyawan: string;  // References Karyawan
+}
+
+// Pertemuan (Appointment)
 export interface Appointment {
-  id: number;
-  appointment_number: string;
-  patient_id: number;
-  doctor_id: number;
-  appointment_date: Date;
-  appointment_time: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-  complaint?: string;
-  registered_by?: number;
-  created_at: Date;
-  updated_at: Date;
+  ID_pertemuan: string;  // VARCHAR(20) PRIMARY KEY
+  ID_Pasien: string;
+  ID_Dokter: string;
+  ID_Perawat?: string;
+  ID_ruangan?: string;
+  Tanggal: Date;
+  Waktu_mulai: string;  // TIME
+  Waktu_selesai?: string;  // TIME
 }
 
+// Hasil_Pemeriksaan (Medical Record)
 export interface MedicalRecord {
-  id: number;
-  appointment_id: number;
-  patient_id: number;
-  doctor_id: number;
-  diagnosis: string;
-  symptoms?: string;
-  vital_signs?: any;
-  notes?: string;
-  treatment_plan?: string;
-  status: 'active' | 'completed' | 'referred';
-  created_at: Date;
-  updated_at: Date;
+  ID_hasil: string;  // VARCHAR(20) PRIMARY KEY
+  ID_pertemuan: string;
 }
 
+// Perawat
+export interface Perawat {
+  ID_perawat: string;  // VARCHAR(20) PRIMARY KEY
+  Nama: string;
+  NIK: string;  // CHAR(16)
+  Kontak?: string;
+  Shift?: string;
+}
+
+// Obat (Medication)
 export interface Medication {
-  id: number;
-  code: string;
-  name: string;
-  description?: string;
-  unit: string;
-  stock: number;
-  price: number;
-  created_at: Date;
-  updated_at: Date;
+  ID_obat: string;  // VARCHAR(20) PRIMARY KEY
+  Nama: string;
+  Kategori?: 'Kapsul' | 'Tablet' | 'Cair' | 'Injeksi' | 'Salep' | 'Lainnya';
 }
 
-export interface Prescription {
-  id: number;
-  prescription_number: string;
-  medical_record_id: number;
-  patient_id: number;
-  doctor_id: number;
-  status: 'pending' | 'prepared' | 'dispensed' | 'completed';
-  notes?: string;
-  prepared_by?: number;
-  prepared_at?: Date;
-  dispensed_at?: Date;
-  created_at: Date;
-  updated_at: Date;
+// Hasil_Obat (many-to-many relationship)
+export interface HasilObat {
+  ID_hasil: string;
+  ID_Obat: string;
 }
 
-export interface PrescriptionItem {
-  id: number;
-  prescription_id: number;
-  medication_id: number;
-  quantity: number;
-  dosage: string;
-  frequency: string;
-  duration: string;
-  instructions?: string;
-  created_at: Date;
+// Ruangan
+export interface Ruangan {
+  ID_ruangan: string;  // VARCHAR(20) PRIMARY KEY
+  ID_gedung?: string;
+  Lantai?: number;
 }
 
-export interface LabTest {
-  id: number;
-  test_number: string;
-  medical_record_id: number;
-  patient_id: number;
-  test_type: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  ordered_by: number;
-  processed_by?: number;
-  requested_at: Date;
-  completed_at?: Date;
-  created_at: Date;
-  updated_at: Date;
+// Gedung
+export interface Gedung {
+  ID_gedung: string;  // VARCHAR(20) PRIMARY KEY
+  Nama: string;
+  Latitude?: string;
+  Longitude?: string;
 }
 
-export interface LabResult {
-  id: number;
-  lab_test_id: number;
-  parameter: string;
-  result: string;
-  unit?: string;
-  reference_range?: string;
-  status?: 'normal' | 'abnormal' | 'critical';
-  notes?: string;
-  created_at: Date;
+// Departemen
+export interface Departemen {
+  ID_Department: string;  // VARCHAR(20) PRIMARY KEY
+  Nama: string;
 }
 
-export interface Payment {
-  id: number;
-  payment_number: string;
-  patient_id: number;
-  appointment_id?: number;
-  total_amount: number;
-  payment_method: 'cash' | 'debit' | 'credit' | 'transfer' | 'insurance';
-  payment_status: 'pending' | 'paid' | 'cancelled';
-  paid_at?: Date;
-  processed_by?: number;
-  notes?: string;
-  created_at: Date;
-  updated_at: Date;
+// Jadwal_Praktik
+export interface JadwalPraktik {
+  ID_jadwal: string;  // VARCHAR(20) PRIMARY KEY
+  Date: Date;
 }
 
-export interface PaymentItem {
-  id: number;
-  payment_id: number;
-  item_type: 'consultation' | 'medication' | 'lab_test' | 'procedure' | 'other';
-  description: string;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  created_at: Date;
+// Ronsen
+export interface Ronsen {
+  ID_ronsen: string;  // VARCHAR(20) PRIMARY KEY
+  ID_hasil: string;
+  imgSrc?: string;
 }
 
-export interface Referral {
-  id: number;
-  referral_number: string;
-  medical_record_id: number;
-  patient_id: number;
-  referring_doctor_id: number;
-  referred_to: string;
-  specialization?: string;
-  reason: string;
-  diagnosis?: string;
-  notes?: string;
-  status: 'pending' | 'accepted' | 'completed' | 'cancelled';
-  referral_date: Date;
-  created_at: Date;
-  updated_at: Date;
+// UrinTest
+export interface UrinTest {
+  ID_uji: string;  // VARCHAR(20) PRIMARY KEY
+  ID_hasil: string;
+  Warna?: 'Kuning Muda' | 'Kuning' | 'Kuning Tua' | 'Merah' | 'Coklat' | 'Lainnya';
+  pH?: number;
+  Protein?: 'Negatif' | 'Trace' | '+1' | '+2' | '+3' | '+4';
+  Glukosa?: 'Negatif' | 'Trace' | '+1' | '+2' | '+3' | '+4';
+  Ketone?: 'Negatif' | 'Trace' | '+1' | '+2' | '+3';
+  Bilirubin?: 'Negatif' | '+1' | '+2' | '+3';
+  Urobilin?: 'Negatif' | 'Normal' | '+1' | '+2' | '+3';
+  Hemoglobin?: 'Negatif' | 'Trace' | '+1' | '+2' | '+3';
+  Sel_darah_putih?: '0-5' | '5-10' | '10-20' | '>20';
+  Sel_darah_merah?: '0-3' | '3-5' | '5-10' | '>10';
+  Bakteri?: 'Negatif' | '+1' | '+2' | '+3';
+  Sel_epitheal?: 'Sedikit' | 'Sedang' | 'Banyak';
+  Crystals?: 'Negatif' | 'Oksalat' | 'Urat' | 'Fosfat' | 'Lainnya';
+  Casts?: 'Negatif' | 'Hialin' | 'Granuler' | 'Eritrosit' | 'Leukosit';
+  Organisme_terisolasi?: string;
+  Antimicrobial?: 'Sensitif' | 'Intermediet' | 'Resisten';
+  Trimethoprim?: 'Sensitif' | 'Intermediet' | 'Resisten';
+  Cefuroxime?: 'Sensitif' | 'Intermediet' | 'Resisten';
+  Amoxycillin_Clavulanic_acid?: 'Sensitif' | 'Intermediet' | 'Resisten';
+  Cephalexin?: 'Sensitif' | 'Intermediet' | 'Resisten';
+  Nitrofurantoin?: 'Sensitif' | 'Intermediet' | 'Resisten';
+  Ciprofloxacin?: 'Sensitif' | 'Intermediet' | 'Resisten';
+  Doxycycline?: 'Sensitif' | 'Intermediet' | 'Resisten';
+  Gentamicin?: 'Sensitif' | 'Intermediet' | 'Resisten';
 }
 
-export interface WearableData {
-  id: number;
-  patient_id: number;
-  device_id?: string;
-  measurement_type: 'heart_rate' | 'blood_pressure' | 'temperature' | 'oxygen_saturation' | 'steps' | 'sleep' | 'calories';
-  value: string;
-  unit?: string;
-  measured_at: Date;
-  status: 'normal' | 'warning' | 'critical';
-  notes?: string;
-  created_at: Date;
+// Billing (Payment)
+export interface Billing {
+  ID_billing: string;  // VARCHAR(20) PRIMARY KEY
+  ID_pasien: string;
+  Lunas_date?: Date;
+  Jenis_pembayaran?: 'Credit' | 'Debit' | 'Cash';
+  isLunas?: boolean;
 }
