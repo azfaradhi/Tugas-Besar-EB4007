@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     sql += ' ORDER BY p.Tanggal DESC';
 
-    const results = await query(sql, params);
+    const results:any = await query(sql, params);
 
     for (const result of results) {
       const obatResult = await query(
@@ -56,13 +56,13 @@ export async function GET(request: NextRequest) {
       );
       result.obat = obatResult;
 
-      const ronsenResult = await query(
+      const ronsenResult:any = await query(
         `SELECT * FROM Ronsen WHERE ID_hasil = ?`,
         [result.ID_hasil]
       );
       result.ronsen = ronsenResult;
 
-      const urinResult = await query(
+      const urinResult:any = await query(
         `SELECT * FROM UrinTest WHERE ID_hasil = ?`,
         [result.ID_hasil]
       );
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       ID_pertemuan, 
       diagnosis, 
       symptoms, 
-      vital_signs, 
+      vital_signs,  
       treatment_plan, 
       notes, 
       status, 
@@ -102,6 +102,8 @@ export async function POST(request: NextRequest) {
       ronsen, 
       urin_test 
     } = body;
+
+    const vital_signs_str = JSON.stringify(vital_signs);
 
     if (!ID_pertemuan) {
       return NextResponse.json(
@@ -114,14 +116,14 @@ export async function POST(request: NextRequest) {
       'SELECT COUNT(*) as count FROM Hasil_Pemeriksaan'
     );
     const count = countResult[0].count;
-    const ID_hasil = `HP${String(count + 1).padStart(6, '0')}`;
-
-    await query(
+    const insertResult:any  = await query(
       `INSERT INTO Hasil_Pemeriksaan 
-       (ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs, treatment_plan, notes, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs, treatment_plan, notes, status || 'completed']
+       (ID_pertemuan, diagnosis, symptoms, vital_signs, treatment_plan, notes, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [ID_pertemuan, diagnosis, symptoms, vital_signs_str, treatment_plan, notes, status || 'completed']
     );
+
+    const ID_hasil = insertResult.insertId;
 
     if (obat && Array.isArray(obat) && obat.length > 0) {
       for (const item of obat) {

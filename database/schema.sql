@@ -215,6 +215,20 @@ CREATE TABLE Billing (
     FOREIGN KEY (ID_pasien) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE
 );
 
+-- Tabel Billing_Farmasi
+CREATE TABLE Billing_Farmasi (
+    ID_billing_farmasi VARCHAR(20) PRIMARY KEY,
+    ID_hasil VARCHAR(20) NOT NULL,
+    ID_pasien VARCHAR(20) NOT NULL,
+    Total_harga DECIMAL(15,2) NOT NULL,
+    Lunas_date DATE,
+    Jenis_pembayaran ENUM('Credit', 'Debit', 'Cash'),
+    isLunas BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE,
+    FOREIGN KEY (ID_pasien) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE
+);
+
+
 -- Indexes untuk performa
 CREATE INDEX idx_pertemuan_pasien ON Pertemuan(ID_Pasien);
 CREATE INDEX idx_pertemuan_dokter ON Pertemuan(ID_Dokter);

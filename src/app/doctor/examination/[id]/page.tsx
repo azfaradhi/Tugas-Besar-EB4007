@@ -147,11 +147,19 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         }
       }
       
-      // Fetch medications
       const medRes = await fetch('/api/obat');
       if (medRes.ok) {
         const medData = await medRes.json();
-        setMedications(medData.obats || []);
+        const normalizedMedications: Medication[] = (medData.obats || []).map((o: any) => ({
+          id: Number(o.ID_obat),   // mapping ID_obat -> id (number)
+          code: '',                // belum ada di API, isi default dulu
+          name: o.Nama,            // mapping Nama -> name
+          unit: o.Kategori,        // sementara pakai Kategori sebagai "unit"
+          stock: 0,                // belum ada field stock di API
+          price: 0,                // belum ada price di API
+        }));
+
+        setMedications(normalizedMedications);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -321,7 +329,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       </div>
 
       {/* Wearable Data */}
-      {/* {wearableData.length > 0 && (
+       {wearableData.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Data Wearable Device</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -336,74 +344,8 @@ export default function ExaminationPage(_: ExaminationPageProps) {
             ))}
           </div>
         </div>
-      )} */}
+      )} 
 
-      {/* Vital Signs */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">Tanda-tanda Vital</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tekanan Darah</label>
-            <input
-              type="text"
-              placeholder="120/80 mmHg"
-              value={vitalSigns.blood_pressure}
-              onChange={(e) => setVitalSigns({...vitalSigns, blood_pressure: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Denyut Jantung (bpm)</label>
-            <input
-              type="text"
-              placeholder="72"
-              value={vitalSigns.heart_rate}
-              onChange={(e) => setVitalSigns({...vitalSigns, heart_rate: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Suhu Tubuh (°C)</label>
-            <input
-              type="text"
-              placeholder="36.5"
-              value={vitalSigns.temperature}
-              onChange={(e) => setVitalSigns({...vitalSigns, temperature: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Laju Napas (/menit)</label>
-            <input
-              type="text"
-              placeholder="16"
-              value={vitalSigns.respiratory_rate}
-              onChange={(e) => setVitalSigns({...vitalSigns, respiratory_rate: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Saturasi Oksigen (%)</label>
-            <input
-              type="text"
-              placeholder="98"
-              value={vitalSigns.oxygen_saturation}
-              onChange={(e) => setVitalSigns({...vitalSigns, oxygen_saturation: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Berat Badan (kg)</label>
-            <input
-              type="text"
-              placeholder="65"
-              value={vitalSigns.weight}
-              onChange={(e) => setVitalSigns({...vitalSigns, weight: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-        </div>
-      </div>
 
       {/* Examination Details */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
