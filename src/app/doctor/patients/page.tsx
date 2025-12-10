@@ -48,17 +48,19 @@ interface RawRow extends RowDataPacket {
   Keluhan: string | null;
 }
 
-async function getPatientsForDoctor(doctorId: number) {
-  // SESUAIKAN nama tabel & kolom
+async function getPatientsForDoctor(doctorId: string) {
+  // Query dari schema BARU - hanya ambil yang belum diperiksa
   const [rows] = await db.query<RawRow[]>(
     `
     SELECT 
-      p.ID_Pasien,
-      p.Nama,
-      a.Tanggal
-    FROM pertemuan a
-    JOIN pasien p ON p.ID_Pasien = a.ID_Pasien
-    WHERE a.ID_Dokter = ?
+      p.ID_pasien as ID_Pasien,
+      p.Nama as Nama,
+      a.Tanggal as Tanggal,
+      a.Waktu_mulai
+    FROM Pertemuan a
+    JOIN Pasien p ON p.ID_pasien = a.ID_Pasien
+    LEFT JOIN Hasil_Pemeriksaan hp ON a.ID_pertemuan = hp.ID_pertemuan
+    WHERE a.ID_Dokter = ? AND hp.ID_hasil IS NULL
     ORDER BY a.Tanggal DESC, a.Waktu_mulai DESC
     `,
     [doctorId]
@@ -79,7 +81,7 @@ async function getPatientsForDoctor(doctorId: number) {
         id: row.ID_Pasien,
         name: row.Nama,
         lastMeetingDate: row.Tanggal,
-        lastComplaint: row.Keluhan,
+        lastComplaint: null, // Pertemuan tidak punya kolom Keluhan
         totalAppointments: 1,
       });
     } else {

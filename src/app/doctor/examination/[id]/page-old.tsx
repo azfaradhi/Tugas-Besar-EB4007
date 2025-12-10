@@ -9,31 +9,27 @@ interface ExaminationPageProps {
 }
 
 interface Patient {
-  ID_pasien: string;
-  Nama: string;
-  NIK: string;
-  Tanggal_lahir: string;
-  Umur: number;
-  Jenis_kelamin: string;
-  No_telpon: string;
-  Alamat: string;
-  Golongan_darah: string;
-  Riwayat_penyakit: string | null;
-  Nama_ibu_kandung: string;
+  id: number;
+  patient_number: string;
+  name: string;
+  date_of_birth: string;
+  gender: string;
+  blood_type: string;
+  phone: string;
+  address: string;
+  emergency_contact: string;
+  emergency_phone: string;
 }
 
 interface Appointment {
-  ID_pertemuan: string;
-  ID_Pasien: string;
-  ID_Dokter: string;
-  ID_Perawat: string | null;
-  ID_ruangan: string | null;
-  Tanggal: string;
-  Waktu_mulai: string;
-  Waktu_selesai: string | null;
-  patient_name: string;
-  doctor_specialization: string;
-  doctor_name: string;
+  id: number;
+  patient_id: number;
+  doctor_id: number;
+  appointment_number: string;
+  appointment_date: string;
+  appointment_time: string;
+  complaint: string;
+  status: string;
 }
 
 interface Medication {
@@ -115,11 +111,11 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     try {
       setLoading(true);
       
-      const aptRes = await fetch(`/api/pertemuan?id=${appointmentId}`);
+      const aptRes = await fetch(`/api/appointments?id=${appointmentId}`);
 
       if (aptRes.ok) {
         const aptData = await aptRes.json();
-        const appointmentObj = aptData.pertemuans?.[0];
+        const appointmentObj = aptData.appointments?.[0];
 
         if (!appointmentObj) {
           console.error("Appointment not found");
@@ -128,10 +124,10 @@ export default function ExaminationPage(_: ExaminationPageProps) {
 
         setAppointment(appointmentObj);
 
-        const patientRes = await fetch(`/api/pasien?id=${appointmentObj.ID_Pasien}`);
+        const patientRes = await fetch(`/api/patients?id=${appointmentObj.patient_id}`);
         if (patientRes.ok) {
           const patientData = await patientRes.json();
-          const patientObj = patientData.pasiens?.[0];
+          const patientObj = patientData.patients?.[0];
           if (!patientObj) {
             console.error("Patient not found");
             return;
@@ -148,10 +144,10 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       }
       
       // Fetch medications
-      const medRes = await fetch('/api/obat');
+      const medRes = await fetch('/api/medications');
       if (medRes.ok) {
         const medData = await medRes.json();
-        setMedications(medData.obats || []);
+        setMedications(medData.medications || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -200,35 +196,62 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     try {
       setSaving(true);
 
-        // Create medical record with medications
-        const medicalRecordRes = await fetch('/api/hasil-pemeriksaan', {
+        // Create medical record
+        const medicalRecordRes = await fetch('/api/medical-records', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            ID_pertemuan: appointmentId,
+            appointment_id: appointmentId,
+            patient_id: patient?.id,
+            doctor_id: appointment?.doctor_id,
             diagnosis,
             symptoms,
             vital_signs: vitalSigns,
             notes,
             treatment_plan: treatmentPlan,
-            status: 'completed',
-            obat: prescriptionItems.map(item => ({ ID_Obat: item.medication_id }))
+            status: 'completed'
           })
         });
 
         if (!medicalRecordRes.ok) {
           alert('Gagal menyimpan rekam medis');
-          return;
         }
 
       const medicalRecordData = await medicalRecordRes.json();
+      const medicalRecordId = medicalRecordData.medical_record_id;
+
+      console.log("medicalRecordId:", medicalRecordId);
+      console.log("patient?.id:", patient?.id);
+      console.log("appointment?.doctor_id:", appointment?.doctor_id);
+      console.log("prescriptionItems:", prescriptionItems);
+
+
+      if (prescriptionItems.length > 0) {
+        const prescriptionRes = await fetch('/api/prescriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            medical_record_id: medicalRecordId,
+            patient_id: patient?.id,
+            doctor_id: appointment?.doctor_id,
+            items: prescriptionItems,
+            status: 'pending'
+          })
+        });
+
+        if (!prescriptionRes.ok) {
+          const errorText = await prescriptionRes.text(); // Capture error response
+          console.error('Failed to save prescription:', errorText); // Log error details
+          throw new Error('Gagal menyimpan resep');
+        }
+      }
 
       // Update appointment status
-      await fetch('/api/pertemuan', {
+      await fetch('/api/appointments', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ID_pertemuan: appointmentId,
+          id: appointmentId,
           status: 'completed'
         })
       });
@@ -286,36 +309,35 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-gray-600">No. Pasien</p>
-            <p className="font-semibold">{patient.ID_pasien}</p>
+            <p className="font-semibold">{patient.patient_number}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Nama</p>
-            <p className="font-semibold">{patient.Nama}</p>
+            <p className="font-semibold">{patient.name}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Usia / Jenis Kelamin</p>
             <p className="font-semibold">
-              {patient.Umur} tahun / {patient.Jenis_kelamin === 'male' ? 'Laki-laki' : 'Perempuan'}
+              {calculateAge(patient.date_of_birth)} tahun / {patient.gender === 'male' ? 'Laki-laki' : 'Perempuan'}
             </p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Golongan Darah</p>
-            <p className="font-semibold">{patient.Golongan_darah || '-'}</p>
+            <p className="font-semibold">{patient.blood_type || '-'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Telepon</p>
-            <p className="font-semibold">{patient.No_telpon}</p>
+            <p className="font-semibold">{patient.phone}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Tanggal Kunjungan</p>
             <p className="font-semibold">
-              {new Date(appointment.Tanggal).toLocaleDateString('id-ID')} - {appointment.Waktu_mulai}
+              {new Date(appointment.appointment_date).toLocaleDateString('id-ID')} - {appointment.appointment_time}
             </p>
           </div>
           <div className="md:col-span-2">
             <p className="text-sm text-gray-600">Keluhan</p>
-            {/* bentar ini blm dibenerin */}
-            <p className="font-semibold">{patient.Alamat || '-'}</p> 
+            <p className="font-semibold">{appointment.complaint || '-'}</p>
           </div>
         </div>
       </div>

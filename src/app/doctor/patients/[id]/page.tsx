@@ -68,14 +68,14 @@ export default async function PatientDetailPage(props: {
   const [patientRows] = await db.query<PatientRow[]>(
     `
     SELECT 
-      ID_Pasien,
-      Nama,
-      Tanggal_lahir,
-      Jenis_kelamin,
-      No_telpon,
-      Alamat
-    FROM pasien
-    WHERE ID_Pasien = ?
+      ID_pasien as ID_Pasien,
+      Nama as Nama,
+      Tanggal_lahir as Tanggal_lahir,
+      Jenis_kelamin as Jenis_kelamin,
+      No_telpon as No_telpon,
+      Alamat as Alamat
+    FROM Pasien
+    WHERE ID_pasien = ?
     `,
     [patientId]
   );
@@ -86,11 +86,11 @@ export default async function PatientDetailPage(props: {
   const [appointmentRows] = await db.query<AppointmentRow[]>(
     `
     SELECT
-      ID_pertemuan,
-      Tanggal,
-      Waktu_mulai,
-      Waktu_selesai
-    FROM pertemuan
+      ID_pertemuan as ID_pertemuan,
+      Tanggal as Tanggal,
+      Waktu_mulai as Waktu_mulai,
+      Waktu_selesai as Waktu_selesai
+    FROM Pertemuan
     WHERE ID_Pasien = ? AND ID_Dokter = ?
     ORDER BY Tanggal DESC, Waktu_mulai DESC
     `,
@@ -102,13 +102,14 @@ export default async function PatientDetailPage(props: {
     const [rows] = await db.query<MedicalRecordRow[]>(
       `
       SELECT 
-        ID_rekam,
-        Tanggal,
-        Diagnosa,
-        Catatan
-      FROM rekam_medis
-      WHERE ID_Pasien = ? AND ID_Dokter = ?
-      ORDER BY Tanggal DESC
+        hp.ID_hasil as ID_rekam,
+        p.Tanggal as Tanggal,
+        '' as Diagnosa,
+        '' as Catatan
+      FROM Hasil_Pemeriksaan hp
+      JOIN Pertemuan p ON hp.ID_pertemuan = p.ID_pertemuan
+      WHERE p.ID_Pasien = ? AND p.ID_Dokter = ?
+      ORDER BY p.Tanggal DESC
       `,
       [patientId, user.profileId]
     );
