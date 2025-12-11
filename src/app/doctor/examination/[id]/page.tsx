@@ -186,7 +186,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
 
   const handleAddMedication = () => {
     if (!selectedMedication || !newPrescriptionItem.dosage || !newPrescriptionItem.frequency) {
-      alert('Mohon lengkapi data obat (dosis & frekuensi wajib).');
+      alert('Mohon lengkapi data obat.');
       return;
     }
     setPrescriptionItems(prev => [
