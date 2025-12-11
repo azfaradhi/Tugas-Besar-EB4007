@@ -4,7 +4,7 @@ import db from '@/lib/db';
 // GET - Mengambil data dokter
 export async function GET() {
   try {
-    const [doctors] = await db.query(`
+    const [doctors] = await db.execute(`
       SELECT
         k.ID_karyawan,
         k.Nama,
@@ -26,8 +26,9 @@ export async function GET() {
     return NextResponse.json({ doctors });
   } catch (error) {
     console.error('Get doctors error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return NextResponse.json(
-      { error: 'Terjadi kesalahan pada server' },
+      { error: 'Terjadi kesalahan pada server', details: errorMessage },
       { status: 500 }
     );
   }
