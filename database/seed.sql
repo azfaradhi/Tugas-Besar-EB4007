@@ -113,17 +113,6 @@ INSERT INTO Jadwal_Praktik (ID_jadwal, Date) VALUES
 -- ============================
 -- 12. Obat
 -- ============================
-INSERT INTO Obat (ID_obat, Nama, Kategori) VALUES
-('1', 'Paracetamol', 'Tablet'),
-('2', 'Amoxicillin', 'Kapsul'),
-('3', 'Ibuprofen', 'Tablet'),
-('4', 'Vitamin C', 'Tablet'),
-('5', 'OBH Combi', 'Cair'),
-('6', 'Antasida Sirup', 'Cair'),
-('7', 'Cetirizine', 'Tablet'),
-('8', 'Salbutamol Inhaler', 'Lainnya'),
-('9', 'Asam Folat', 'Tablet'),
-('10', 'Vitamin B Complex', 'Tablet');
 
 -- ============================
 -- 13. Hasil Pemeriksaan
