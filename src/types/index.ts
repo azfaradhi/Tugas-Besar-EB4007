@@ -173,3 +173,27 @@ export interface Billing {
   Jenis_pembayaran?: 'Credit' | 'Debit' | 'Cash';
   isLunas?: boolean;
 }
+
+// Wearable Data (MAX30102 Sensor Measurements)
+export interface WearableData {
+  id: number;
+  patient_id: number;
+  device_id?: string;
+  measurement_type: 'heart_rate' | 'spo2' | 'blood_pressure' | 'temperature' | 'oxygen_saturation' | 'steps' | 'sleep' | 'calories';
+  value: string;
+  unit?: string;
+  measured_at: Date | string;
+  status?: 'normal' | 'warning' | 'critical';
+  notes?: string;
+  created_at?: Date;
+}
+
+// For displaying patient vital signs with patient info
+export interface PatientVitalSigns {
+  patient_id: number;
+  patient_name: string;
+  latest_heart_rate?: number;
+  latest_spo2?: number;
+  latest_measurement_time?: Date;
+  status: 'normal' | 'warning' | 'critical';
+}

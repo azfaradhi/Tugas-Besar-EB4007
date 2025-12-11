@@ -120,6 +120,12 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     instructions: ''
   });
 
+  // Lab referral state
+  const [labReferrals, setLabReferrals] = useState({
+    urinTest: false,
+    ronsenTest: false,
+  });
+
   useEffect(() => {
     if (!appointmentId) return;
     fetchData();

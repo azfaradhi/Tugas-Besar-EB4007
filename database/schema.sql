@@ -242,3 +242,20 @@ CREATE INDEX idx_pertemuan_dokter ON Pertemuan(ID_Dokter);
 CREATE INDEX idx_pertemuan_tanggal ON Pertemuan(Tanggal);
 CREATE INDEX idx_billing_pasien ON Billing(ID_pasien);
 CREATE INDEX idx_hasil_pertemuan ON Hasil_Pemeriksaan(ID_pertemuan);
+
+-- Tabel untuk menyimpan hasil measurement dari MAX30102 (Heart Rate & SpO2)
+CREATE TABLE IF NOT EXISTS wearable_data (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    patient_id VARCHAR(20) NOT NULL,
+    measurement_type ENUM('heart_rate', 'spo2') NOT NULL,
+    value DECIMAL(10,2) NOT NULL,
+    unit VARCHAR(10),
+    measured_at DATETIME NOT NULL,
+    status ENUM('normal', 'warning', 'critical') DEFAULT 'normal',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE,
+    INDEX idx_patient_time (patient_id, measured_at DESC),
+    INDEX idx_measurement_type (measurement_type),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MAX30102 sensor measurement data (temporary use during visits)';

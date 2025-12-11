@@ -20,6 +20,7 @@ export default function VisitRegistrationPage() {
   const [loading, setLoading] = useState(false);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [doctorError, setDoctorError] = useState('');
   const [formData, setFormData] = useState({
     ID_Dokter: '',
     Tanggal: '',
@@ -43,13 +44,16 @@ export default function VisitRegistrationPage() {
       const doctorsRes = await fetch('/api/doctors');
       if (doctorsRes.ok) {
         const doctorsData = await doctorsRes.json();
-        console.log('Doctors API response:', doctorsData);
         setDoctors(doctorsData.doctors || doctorsData || []);
       } else {
-        console.error('Failed to fetch doctors:', doctorsRes.status, doctorsRes.statusText);
+        const errorData = await doctorsRes.json();
+        const errorMessage = `Failed to fetch doctors. ${errorData.error}. Details: ${errorData.details}`;
+        console.error(errorMessage);
+        setDoctorError(errorMessage);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+      setDoctorError('An unexpected error occurred while fetching data.');
     }
   };
 
@@ -129,19 +133,16 @@ export default function VisitRegistrationPage() {
       '13:00', '14:00', '15:00', '16:00', '17:00'
     ];
 
-    // Jika tidak ada tanggal dipilih atau tanggal dipilih bukan hari ini, tampilkan semua
     if (!formData.Tanggal || formData.Tanggal !== getTodayDate()) {
       return allTimeSlots;
     }
 
-    // Jika tanggal dipilih adalah hari ini, filter hanya jam setelah waktu sekarang
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
 
     return allTimeSlots.filter(timeSlot => {
       const [hour] = timeSlot.split(':').map(Number);
-      // Tambahkan buffer 1 jam untuk persiapan
       return hour > currentHour + 1 || (hour === currentHour + 1 && currentMinute === 0);
     });
   };
@@ -175,7 +176,6 @@ export default function VisitRegistrationPage() {
                       value={formData.Tanggal}
                       onChange={(e) => {
                         handleChange(e);
-                        // Reset waktu ketika tanggal berubah
                         setFormData(prev => ({ ...prev, Waktu_mulai: '' }));
                       }}
                       required
@@ -234,6 +234,7 @@ export default function VisitRegistrationPage() {
                         </option>
                       ))}
                     </select>
+                    {doctorError && <p className="mt-2 text-sm text-red-600">{doctorError}</p>}
                   </div>
 
                 </div>

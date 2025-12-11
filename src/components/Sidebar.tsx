@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 
 interface SidebarProps {
   user: {
@@ -14,7 +14,7 @@ interface SidebarProps {
 
 interface MenuItem {
   label: string;
-  icon: JSX.Element;
+  icon: ReactNode;
   href: string;
   badge?: string;
 }
@@ -104,6 +104,15 @@ export default function Sidebar({ user }: SidebarProps) {
             href: '/patient/pharmacy',
           },
           {
+            label: 'Health Monitor',
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            ),
+            href: '/patient/health-monitor',
+            badge: 'IoT',
+          },
             label: 'Rawat Inap',
             icon: (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,6 +142,16 @@ export default function Sidebar({ user }: SidebarProps) {
               </svg>
             ),
             href: '/doctor/patients',
+          },
+          {
+            label: 'Patient Vitals',
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            ),
+            href: '/doctor/patient-vitals',
+            badge: 'IoT',
           },
         ];
 
@@ -231,15 +250,6 @@ export default function Sidebar({ user }: SidebarProps) {
               </svg>
             ),
             href: '/staff/pharmacy/sales',
-          },
-          {
-            label: 'Laporan',
-            icon: (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            ),
-            href: '/staff/pharmacy/reports',
           },
         ];
 
