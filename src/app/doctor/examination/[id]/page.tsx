@@ -107,6 +107,12 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     instructions: ''
   });
 
+  // Lab referral state
+  const [labReferrals, setLabReferrals] = useState({
+    urinTest: false,
+    ronsenTest: false,
+  });
+
   useEffect(() => {
     fetchData();
   }, [appointmentId]);
@@ -208,20 +214,31 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     try {
       setSaving(true);
 
-        // Create medical record with medications
+        // Create medical record with medications and lab referrals
+        const requestBody: any = {
+          ID_pertemuan: appointmentId,
+          diagnosis,
+          symptoms,
+          vital_signs: vitalSigns,
+          notes,
+          treatment_plan: treatmentPlan,
+          status: 'completed',
+          obat: prescriptionItems.map(item => ({ ID_Obat: item.medication_id }))
+        };
+
+        // Add lab referrals if checked
+        if (labReferrals.urinTest) {
+          requestBody.urin_test = {}; // Empty object will create entry with ID only
+        }
+
+        if (labReferrals.ronsenTest) {
+          requestBody.ronsen = [{}]; // Empty object will create entry with ID only
+        }
+
         const medicalRecordRes = await fetch('/api/hasil-pemeriksaan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ID_pertemuan: appointmentId,
-            diagnosis,
-            symptoms,
-            vital_signs: vitalSigns,
-            notes,
-            treatment_plan: treatmentPlan,
-            status: 'completed',
-            obat: prescriptionItems.map(item => ({ ID_Obat: item.medication_id }))
-          })
+          body: JSON.stringify(requestBody)
         });
 
         if (!medicalRecordRes.ok) {
@@ -392,6 +409,63 @@ export default function ExaminationPage(_: ExaminationPageProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Lab Referrals */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">Rujukan Laboratorium</h3>
+        <div className="space-y-3">
+          <div className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+            <input
+              type="checkbox"
+              id="urinTest"
+              checked={labReferrals.urinTest}
+              onChange={(e) => setLabReferrals({ ...labReferrals, urinTest: e.target.checked })}
+              className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <label htmlFor="urinTest" className="ml-3 flex-1 cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">Tes Urin (Urinalisis)</p>
+                  <p className="text-sm text-gray-500">Pemeriksaan komprehensif sampel urin</p>
+                </div>
+                <div className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                  Lab
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+            <input
+              type="checkbox"
+              id="ronsenTest"
+              checked={labReferrals.ronsenTest}
+              onChange={(e) => setLabReferrals({ ...labReferrals, ronsenTest: e.target.checked })}
+              className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <label htmlFor="ronsenTest" className="ml-3 flex-1 cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">Rontgen (X-Ray)</p>
+                  <p className="text-sm text-gray-500">Pemeriksaan radiologi menggunakan sinar-X</p>
+                </div>
+                <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                  Radiologi
+                </div>
+              </div>
+            </label>
+          </div>
+
+          {(labReferrals.urinTest || labReferrals.ronsenTest) && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Catatan:</strong> Rujukan lab akan dibuat dan pasien dapat melakukan tes laboratorium.
+                Hasil tes akan diisi oleh staf laboratorium.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
