@@ -55,6 +55,16 @@ interface PrescriptionItem {
   instructions: string;
 }
 
+interface MedicalRecord {
+  ID_hasil: number;
+  diagnosis: string;
+  symptoms: string;
+  treatment_plan: string;
+  notes: string;
+  next_step: string;
+  created_at: string;
+}
+
 interface VitalSigns {
   blood_pressure: string;
   heart_rate: string;
@@ -70,18 +80,18 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   const params = useParams();
   const appointmentId = params?.id as string | undefined;
 
-  useEffect(() => {
-    if (!appointmentId) return; 
-    fetchData();
-  }, [appointmentId]);
+  // loading state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // data state
   const [patient, setPatient] = useState<Patient | null>(null);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
+  const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [wearableData, setWearableData] = useState<any[]>([]);
-  
-  // Form state
+
+  // form state
   const [vitalSigns, setVitalSigns] = useState<VitalSigns>({
     blood_pressure: '',
     heart_rate: '',
@@ -95,6 +105,9 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   const [diagnosis, setDiagnosis] = useState('');
   const [treatmentPlan, setTreatmentPlan] = useState('');
   const [notes, setNotes] = useState('');
+  const [nextStep, setNextStep] = useState<'Rawat Jalan' | 'Rawat Inap' | 'Laboratorium'>('Rawat Jalan');
+
+  // prescription state + modal
   const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([]);
   const [showMedicationModal, setShowMedicationModal] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState<Medication | null>(null);
@@ -108,61 +121,58 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   });
 
   useEffect(() => {
+    if (!appointmentId) return;
     fetchData();
   }, [appointmentId]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      
+
+      // pertemuan
       const aptRes = await fetch(`/api/pertemuan?id=${appointmentId}`);
+      if (!aptRes.ok) throw new Error('Gagal ambil data pertemuan');
+      const aptData = await aptRes.json();
+      const appointmentObj = aptData.pertemuans?.[0];
+      if (!appointmentObj) throw new Error('Pertemuan tidak ditemukan');
+      setAppointment(appointmentObj);
 
-      if (aptRes.ok) {
-        const aptData = await aptRes.json();
-        const appointmentObj = aptData.pertemuans?.[0];
+      // pasien
+      const patientRes = await fetch(`/api/pasien?id=${appointmentObj.ID_Pasien}`);
+      if (!patientRes.ok) throw new Error('Gagal ambil data pasien');
+      const patientData = await patientRes.json();
+      setPatient(patientData.pasiens?.[0]);
 
-        if (!appointmentObj) {
-          console.error("Appointment not found");
-          return;
-        }
-
-        setAppointment(appointmentObj);
-
-        const patientRes = await fetch(`/api/pasien?id=${appointmentObj.ID_Pasien}`);
-        if (patientRes.ok) {
-          const patientData = await patientRes.json();
-          const patientObj = patientData.pasiens?.[0];
-          if (!patientObj) {
-            console.error("Patient not found");
-            return;
-          }
-          setPatient(patientObj);
-
-          // nanti fetch wearable data
-          // const wearableRes = await fetch(`/api/wearable?patient_id=${aptData.appointment.patient_id}`);
-          // if (wearableRes.ok) {
-          //   const wearableData = await wearableRes.json();
-          //   setWearableData(wearableData.data || []);
-          // }
-        }
+      // rekam medis
+      const rekamRes = await fetch(`/api/hasil-pemeriksaan?patientId=${appointmentObj.ID_Pasien}`);
+      if (rekamRes.ok) {
+        const data = await rekamRes.json();
+        setMedicalRecords(data.records || []);
       }
-      
+
+      // obat master
       const medRes = await fetch('/api/obat');
       if (medRes.ok) {
         const medData = await medRes.json();
-        const normalizedMedications: Medication[] = (medData.obats || []).map((o: any) => ({
-          id: Number(o.ID_obat),   // mapping ID_obat -> id (number)
-          code: '',                // belum ada di API, isi default dulu
-          name: o.Nama,            // mapping Nama -> name
-          unit: o.Kategori,        // sementara pakai Kategori sebagai "unit"
-          stock: 0,                // belum ada field stock di API
-          price: 0,                // belum ada price di API
+        const normalized: Medication[] = (medData.obats || []).map((o: any) => ({
+          id: Number(o.ID_obat),
+          code: '',
+          name: o.Nama,
+          unit: o.Kategori,
+          stock: 0,
+          price: Number(o.Harga_satuan ?? 0)
         }));
-
-        setMedications(normalizedMedications);
+        setMedications(normalized);
       }
-    } catch (error) {
-      console.error('Error fetching data:', error);
+
+      // wearable (optional)
+      // const wearableRes = await fetch(`/api/wearable?patient_id=${appointmentObj.ID_Pasien}`);
+      // if (wearableRes.ok) {
+      //   const wearable = await wearableRes.json();
+      //   setWearableData(wearable.data || []);
+      // }
+    } catch (e) {
+      console.error('Error:', e);
     } finally {
       setLoading(false);
     }
@@ -170,12 +180,11 @@ export default function ExaminationPage(_: ExaminationPageProps) {
 
   const handleAddMedication = () => {
     if (!selectedMedication || !newPrescriptionItem.dosage || !newPrescriptionItem.frequency) {
-      alert('Mohon lengkapi data obat');
+      alert('Mohon lengkapi data obat (dosis & frekuensi wajib).');
       return;
     }
-
-    setPrescriptionItems([
-      ...prescriptionItems,
+    setPrescriptionItems(prev => [
+      ...prev,
       {
         ...newPrescriptionItem,
         medication_id: selectedMedication.id,
@@ -196,7 +205,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   };
 
   const handleRemoveMedication = (index: number) => {
-    setPrescriptionItems(prescriptionItems.filter((_, i) => i !== index));
+    setPrescriptionItems(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -208,41 +217,64 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     try {
       setSaving(true);
 
-        // Create medical record with medications
-        const medicalRecordRes = await fetch('/api/hasil-pemeriksaan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ID_pertemuan: appointmentId,
-            diagnosis,
-            symptoms,
-            vital_signs: vitalSigns,
-            notes,
-            treatment_plan: treatmentPlan,
-            status: 'completed',
-            obat: prescriptionItems.map(item => ({ ID_Obat: item.medication_id }))
-          })
-        });
-
-        if (!medicalRecordRes.ok) {
-          alert('Gagal menyimpan rekam medis');
-          return;
-        }
-
-      const medicalRecordData = await medicalRecordRes.json();
-
-      // Update appointment status
-      await fetch('/api/pertemuan', {
-        method: 'PUT',
+      const res = await fetch('/api/hasil-pemeriksaan', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ID_pertemuan: appointmentId,
-          status: 'completed'
+          diagnosis,
+          symptoms,
+          vital_signs: vitalSigns,
+          treatment_plan: treatmentPlan,
+          notes,                 // tambahan catatan dokter
+          next_step: nextStep,   // dropdown langkah selanjutnya
+          status: 'completed',
+          obat: prescriptionItems.map(item => ({
+            ID_Obat: item.medication_id,
+            dosage: item.dosage,
+            frequency: item.frequency,
+            duration: item.duration,
+            quantity: item.quantity
+          }))
         })
       });
 
+      if (!res.ok) throw new Error('Gagal simpan pemeriksaan');
+      const result = await res.json();
+
+      // update tabel rekam medis di UI (tanpa reload)
+      setMedicalRecords(prev => [
+        {
+          ID_hasil: Number(result.ID_hasil),
+          diagnosis,
+          symptoms,
+          treatment_plan: treatmentPlan,
+          notes,
+          next_step: nextStep,
+          created_at: new Date().toISOString()
+        },
+        ...prev
+      ]);
+
+      // reset form
+      setDiagnosis('');
+      setSymptoms('');
+      setTreatmentPlan('');
+      setNotes('');
+      setNextStep('Rawat Jalan');
+      setPrescriptionItems([]);
+      setVitalSigns({
+        blood_pressure: '',
+        heart_rate: '',
+        temperature: '',
+        respiratory_rate: '',
+        oxygen_saturation: '',
+        weight: '',
+        height: ''
+      });
+
       alert('Pemeriksaan berhasil disimpan');
-      router.push('/dashboard');
+      // router.push('/dashboard'); // kalau mau balik dashboard, aktifkan ini
     } catch (error) {
       console.error('Error saving examination:', error);
       alert('Gagal menyimpan pemeriksaan');
@@ -251,154 +283,125 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-8">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  if (!patient || !appointment) {
-    return (
-      <div className="p-8">
-        <p>Data tidak ditemukan</p>
-      </div>
-    );
-  }
-
-  const calculateAge = (dob: string) => {
-    const birthDate = new Date(dob);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
+  if (loading) return <div className="p-8 text-black">Loading...</div>;
+  if (!patient || !appointment) return <div className="p-8 text-black">Data tidak ditemukan</div>;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto text-black">
       <div className="mb-6">
-        <Link href="/dashboard" className="text-indigo-600 hover:text-indigo-800">
+        <Link href="/dashboard" className="text-blue-600 hover:underline">
           ← Kembali ke Dashboard
         </Link>
       </div>
 
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Pemeriksaan Pasien</h2>
+      <h2 className="text-3xl font-bold mb-6">Pemeriksaan Pasien</h2>
 
-      {/* Patient Info Card */}
+      {/* Patient Info */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">Informasi Pasien</h3>
+        <h3 className="text-xl font-semibold mb-4">Informasi Pasien</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-gray-600">No. Pasien</p>
+            <p className="text-sm">No. Pasien</p>
             <p className="font-semibold">{patient.ID_pasien}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Nama</p>
+            <p className="text-sm">Nama</p>
             <p className="font-semibold">{patient.Nama}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Usia / Jenis Kelamin</p>
+            <p className="text-sm">Usia / Jenis Kelamin</p>
             <p className="font-semibold">
               {patient.Umur} tahun / {patient.Jenis_kelamin === 'male' ? 'Laki-laki' : 'Perempuan'}
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Golongan Darah</p>
+            <p className="text-sm">Golongan Darah</p>
             <p className="font-semibold">{patient.Golongan_darah || '-'}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Telepon</p>
+            <p className="text-sm">Telepon</p>
             <p className="font-semibold">{patient.No_telpon}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Tanggal Kunjungan</p>
+            <p className="text-sm">Tanggal Kunjungan</p>
             <p className="font-semibold">
-              {new Date(appointment.Tanggal).toLocaleDateString('id-ID')} - {appointment.Waktu_mulai}
+              {new Date(appointment.Tanggal).toLocaleDateString('id-ID')} — {appointment.Waktu_mulai}
             </p>
-          </div>
-          <div className="md:col-span-2">
-            <p className="text-sm text-gray-600">Keluhan</p>
-            {/* bentar ini blm dibenerin */}
-            <p className="font-semibold">{patient.Alamat || '-'}</p> 
           </div>
         </div>
       </div>
 
-      {/* Wearable Data */}
-       {wearableData.length > 0 && (
+      {/* Wearable (optional) */}
+      {wearableData.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Data Wearable Device</h3>
+          <h3 className="text-xl font-semibold mb-4">Data Wearable Device</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {wearableData.slice(0, 4).map((data, index) => (
               <div key={index} className="border rounded-lg p-3">
-                <p className="text-xs text-gray-600">{data.measurement_type}</p>
-                <p className="text-lg font-bold">{data.value} {data.unit}</p>
-                <p className="text-xs text-gray-500">
-                  {new Date(data.measured_at).toLocaleString('id-ID')}
+                <p className="text-xs">{data.measurement_type}</p>
+                <p className="text-lg font-bold">
+                  {data.value} {data.unit}
                 </p>
+                <p className="text-xs">{new Date(data.measured_at).toLocaleString('id-ID')}</p>
               </div>
             ))}
           </div>
         </div>
-      )} 
+      )}
 
-
-      {/* Examination Details */}
+      {/* Examination */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">Detail Pemeriksaan</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Gejala</label>
-            <textarea
-              rows={3}
-              placeholder="Deskripsikan gejala yang dialami pasien..."
-              value={symptoms}
-              onChange={(e) => setSymptoms(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Diagnosis <span className="text-red-500">*</span></label>
-            <textarea
-              rows={3}
-              placeholder="Masukkan diagnosis..."
-              value={diagnosis}
-              onChange={(e) => setDiagnosis(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Rencana Perawatan</label>
-            <textarea
-              rows={3}
-              placeholder="Rencana perawatan untuk pasien..."
-              value={treatmentPlan}
-              onChange={(e) => setTreatmentPlan(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Catatan Tambahan</label>
-            <textarea
-              rows={2}
-              placeholder="Catatan tambahan..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-        </div>
+        <h3 className="text-xl font-semibold mb-4">Detail Pemeriksaan</h3>
+
+        <label className="block mb-2 font-semibold">Gejala</label>
+        <textarea
+          rows={2}
+          value={symptoms}
+          onChange={(e) => setSymptoms(e.target.value)}
+          className="w-full border rounded p-2 mb-4"
+        />
+
+        <label className="block mb-2 font-semibold">Diagnosis</label>
+        <textarea
+          rows={2}
+          value={diagnosis}
+          onChange={(e) => setDiagnosis(e.target.value)}
+          className="w-full border rounded p-2 mb-4"
+          required
+        />
+
+        <label className="block mb-2 font-semibold">Rencana Perawatan</label>
+        <textarea
+          rows={2}
+          value={treatmentPlan}
+          onChange={(e) => setTreatmentPlan(e.target.value)}
+          className="w-full border rounded p-2 mb-4"
+        />
+
+        <label className="block mb-2 font-semibold">Catatan Tambahan</label>
+        <textarea
+          rows={2}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="w-full border rounded p-2 mb-4"
+        />
+
+        <label className="block mb-2 font-semibold">Langkah Selanjutnya</label>
+        <select
+          value={nextStep}
+          onChange={(e) => setNextStep(e.target.value as any)}
+          className="w-full border rounded p-2 mb-4"
+        >
+          <option>Rawat Jalan</option>
+          <option>Rawat Inap</option>
+          <option>Laboratorium</option>
+        </select>
       </div>
 
       {/* Prescription */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold text-gray-800">Resep Obat</h3>
+          <h3 className="text-xl font-semibold">Resep Obat</h3>
           <button
             onClick={() => setShowMedicationModal(true)}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
@@ -408,21 +411,21 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         </div>
 
         {prescriptionItems.length === 0 ? (
-          <p className="text-gray-500">Belum ada obat yang diresepkan</p>
+          <p>Tidak ada obat yang diresepkan</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Nama Obat</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Dosis</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Frekuensi</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Durasi</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Jumlah</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Aksi</th>
+                <tr className="bg-gray-100">
+                  <th className="px-4 py-2 text-left text-sm font-medium">Nama Obat</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium">Dosis</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium">Frekuensi</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium">Durasi</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium">Jumlah</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y">
                 {prescriptionItems.map((item, index) => (
                   <tr key={index}>
                     <td className="px-4 py-2 text-sm">{item.medication_name}</td>
@@ -446,11 +449,11 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         )}
       </div>
 
-      {/* Submit Button */}
+      {/* Actions */}
       <div className="flex justify-end space-x-4">
         <Link
           href="/dashboard"
-          className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+          className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
         >
           Batal
         </Link>
@@ -463,27 +466,27 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         </button>
       </div>
 
-      {/* Medication Modal */}
+      {/* Medication Modal (tetap ADA) */}
       {showMedicationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold mb-4">Tambah Obat</h3>
-            
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Obat</label>
+                <label className="block text-sm font-medium mb-1">Pilih Obat</label>
                 <select
                   value={selectedMedication?.id || ''}
                   onChange={(e) => {
                     const med = medications.find(m => m.id === parseInt(e.target.value));
                     setSelectedMedication(med || null);
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="">-- Pilih Obat --</option>
                   {medications.map(med => (
                     <option key={med.id} value={med.id}>
-                      {med.name} - Stock: {med.stock} {med.unit}
+                      {med.name} {med.unit ? `(${med.unit})` : ''} {med.price ? `- Rp${med.price}` : ''}
                     </option>
                   ))}
                 </select>
@@ -491,58 +494,58 @@ export default function ExaminationPage(_: ExaminationPageProps) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Dosis</label>
+                  <label className="block text-sm font-medium mb-1">Dosis</label>
                   <input
                     type="text"
                     placeholder="Contoh: 500mg"
                     value={newPrescriptionItem.dosage}
-                    onChange={(e) => setNewPrescriptionItem({...newPrescriptionItem, dosage: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, dosage: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Frekuensi</label>
+                  <label className="block text-sm font-medium mb-1">Frekuensi</label>
                   <input
                     type="text"
                     placeholder="Contoh: 3x sehari"
                     value={newPrescriptionItem.frequency}
-                    onChange={(e) => setNewPrescriptionItem({...newPrescriptionItem, frequency: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, frequency: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Durasi</label>
+                  <label className="block text-sm font-medium mb-1">Durasi</label>
                   <input
                     type="text"
                     placeholder="Contoh: 7 hari"
                     value={newPrescriptionItem.duration}
-                    onChange={(e) => setNewPrescriptionItem({...newPrescriptionItem, duration: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, duration: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label>
+                  <label className="block text-sm font-medium mb-1">Jumlah</label>
                   <input
                     type="number"
-                    min="1"
+                    min={1}
                     value={newPrescriptionItem.quantity}
-                    onChange={(e) => setNewPrescriptionItem({...newPrescriptionItem, quantity: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, quantity: parseInt(e.target.value) || 1 })}
+                    className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Instruksi</label>
+                <label className="block text-sm font-medium mb-1">Instruksi</label>
                 <textarea
                   rows={2}
                   placeholder="Contoh: Diminum setelah makan"
                   value={newPrescriptionItem.instructions}
-                  onChange={(e) => setNewPrescriptionItem({...newPrescriptionItem, instructions: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, instructions: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
             </div>
@@ -561,7 +564,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     instructions: ''
                   });
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border rounded-lg"
               >
                 Batal
               </button>
