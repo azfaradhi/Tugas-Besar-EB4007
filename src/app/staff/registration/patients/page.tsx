@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 interface Patient {
   ID_pasien: string;
   Nama: string;
-  NIK: string;
   Tanggal_lahir: string;
   Umur: number;
   Jenis_kelamin: string;
@@ -43,7 +42,6 @@ export default function PatientsListPage() {
   const filteredPatients = patients.filter(
     (patient) =>
       patient.Nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.NIK.includes(searchTerm) ||
       patient.ID_pasien.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -103,7 +101,7 @@ export default function PatientsListPage() {
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <input
           type="text"
-          placeholder="Cari pasien berdasarkan nama, NIK, atau ID..."
+          placeholder="Cari pasien berdasarkan nama atau ID..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -123,9 +121,6 @@ export default function PatientsListPage() {
                   Nama
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  NIK
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Jenis Kelamin
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -142,7 +137,7 @@ export default function PatientsListPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Tidak ada data pasien
                   </td>
                 </tr>
@@ -154,9 +149,6 @@ export default function PatientsListPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {patient.Nama}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {patient.NIK}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                       {patient.Jenis_kelamin}
@@ -207,10 +199,6 @@ export default function PatientsListPage() {
               <div>
                 <p className="text-sm text-gray-600">Nama Lengkap</p>
                 <p className="font-medium text-gray-900">{selectedPatient.Nama}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">NIK</p>
-                <p className="font-medium text-gray-900">{selectedPatient.NIK}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Tanggal Lahir</p>

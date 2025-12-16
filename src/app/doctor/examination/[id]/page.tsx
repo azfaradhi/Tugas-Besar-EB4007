@@ -11,7 +11,6 @@ interface ExaminationPageProps {
 interface Patient {
   ID_pasien: string;
   Nama: string;
-  NIK: string;
   Tanggal_lahir: string;
   Umur: number;
   Jenis_kelamin: string;
@@ -37,7 +36,7 @@ interface Appointment {
 }
 
 interface Medication {
-  id: number;
+  id: string;
   code: string;
   name: string;
   unit: string;
@@ -46,7 +45,7 @@ interface Medication {
 }
 
 interface PrescriptionItem {
-  medication_id: number;
+  medication_id: string;
   medication_name?: string;
   quantity: number;
   dosage: string;
@@ -112,7 +111,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   const [showMedicationModal, setShowMedicationModal] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState<Medication | null>(null);
   const [newPrescriptionItem, setNewPrescriptionItem] = useState<PrescriptionItem>({
-    medication_id: 0,
+    medication_id: '',
     quantity: 1,
     dosage: '',
     frequency: '',
@@ -161,7 +160,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       if (medRes.ok) {
         const medData = await medRes.json();
         const normalized: Medication[] = (medData.obats || []).map((o: any) => ({
-          id: Number(o.ID_obat),
+          id: o.ID_obat,
           code: '',
           name: o.Nama,
           unit: o.Kategori,
@@ -201,7 +200,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     setShowMedicationModal(false);
     setSelectedMedication(null);
     setNewPrescriptionItem({
-      medication_id: 0,
+      medication_id: '',
       quantity: 1,
       dosage: '',
       frequency: '',
@@ -237,10 +236,10 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           status: 'completed',
           obat: prescriptionItems.map(item => ({
             ID_Obat: item.medication_id,
-            dosage: item.dosage,
-            frequency: item.frequency,
-            duration: item.duration,
-            quantity: item.quantity
+            Dosis: item.dosage,
+            Frekuensi: item.frequency,
+            Durasi_hari: item.duration,
+            Qty: item.quantity
           }))
         })
       });
@@ -484,7 +483,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                 <select
                   value={selectedMedication?.id || ''}
                   onChange={(e) => {
-                    const med = medications.find(m => m.id === parseInt(e.target.value));
+                    const med = medications.find(m => m.id === e.target.value);
                     setSelectedMedication(med || null);
                   }}
                   className="w-full px-3 py-2 border rounded-lg"
@@ -562,7 +561,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                   setShowMedicationModal(false);
                   setSelectedMedication(null);
                   setNewPrescriptionItem({
-                    medication_id: 0,
+                    medication_id: '',
                     quantity: 1,
                     dosage: '',
                     frequency: '',

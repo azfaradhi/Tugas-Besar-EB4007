@@ -12,7 +12,7 @@ export default function RegisterPage() {
     confirmPassword: '',
     name: '',
     dateOfBirth: '',
-    gender: 'male',
+    gender: 'Laki-laki',
     bloodType: '',
     phone: '',
     email: '',
@@ -208,8 +208,8 @@ export default function RegisterPage() {
                   value={formData.gender}
                   onChange={handleChange}
                 >
-                  <option value="male">Laki-laki</option>
-                  <option value="female">Perempuan</option>
+                  <option value="Laki-laki">Laki-laki</option>
+                  <option value="Perempuan">Perempuan</option>
                 </select>
               </div>
 

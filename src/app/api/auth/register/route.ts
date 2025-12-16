@@ -18,7 +18,6 @@ export async function POST(request: NextRequest) {
       emergencyPhone
     } = await request.json();
 
-    // Validasi input
     if (!username || !password || !name || !dateOfBirth || !gender) {
       return NextResponse.json(
         { error: 'Username, password, nama, tanggal lahir, dan jenis kelamin harus diisi' },
@@ -33,7 +32,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cek apakah username sudah ada
     const [existingUsers] = await db.query<any[]>(
       'SELECT id FROM users WHERE username = ?',
       [username]
@@ -46,54 +44,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Insert user
-    const [userResult] = await db.query<any>(
-      'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-      [username, hashedPassword, 'patient']
-    );
-
-    const userId = userResult.insertId;
-
-    // Generate patient number (format: P + year + month + sequential number)
     const now = new Date();
     const year = now.getFullYear().toString().slice(-2);
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
 
-    // Get last patient number for this month
     const [lastPatients] = await db.query<any[]>(
-      'SELECT patient_number FROM pasien WHERE patient_number LIKE ? ORDER BY id DESC LIMIT 1',
+      'SELECT ID_pasien FROM Pasien WHERE ID_pasien LIKE ? ORDER BY ID_pasien DESC LIMIT 1',
       [`P${year}${month}%`]
     );
 
     let sequential = 1;
     if (lastPatients.length > 0) {
-      const lastNumber = lastPatients[0].patient_number;
+      const lastNumber = lastPatients[0].ID_pasien;
       const lastSequential = parseInt(lastNumber.slice(-4));
       sequential = lastSequential + 1;
     }
 
     const patientNumber = `P${year}${month}${sequential.toString().padStart(4, '0')}`;
 
-    // Insert patient
+    const [userResult] = await db.query<any>(
+      'INSERT INTO users (username, password, role, profile_id) VALUES (?, ?, ?, ?)',
+      [username, hashedPassword, 'patient', patientNumber]
+    );
+
+    const userId = userResult.insertId;
+
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
     await db.query(
-      `INSERT INTO pasien
-       (user_id, patient_number, name, date_of_birth, gender, blood_type, phone, email, address, emergency_contact, emergency_phone)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO Pasien
+       (ID_pasien, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        userId,
         patientNumber,
+        userId,
         name,
         dateOfBirth,
+        age,
         gender,
-        bloodType || null,
         phone || null,
-        email || null,
         address || null,
-        emergencyContact || null,
-        emergencyPhone || null
+        bloodType || null
       ]
     );
 

@@ -318,7 +318,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           <div>
             <p className="text-sm text-gray-600">Usia / Jenis Kelamin</p>
             <p className="font-semibold">
-              {calculateAge(patient.date_of_birth)} tahun / {patient.gender === 'male' ? 'Laki-laki' : 'Perempuan'}
+              {calculateAge(patient.date_of_birth)} tahun / {patient.gender === 'Laki-laki' ? 'Laki-laki' : 'Perempuan'}
             </p>
           </div>
           <div>

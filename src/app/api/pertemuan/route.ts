@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
         DATE_FORMAT(a.Tanggal, '%Y-%m-%d') as Tanggal,
         a.Waktu_mulai,
         a.Waktu_selesai,
+        a.status,
         p.Nama as patient_name,
         p.ID_pasien as patient_number,
         k.Nama as doctor_name,
@@ -99,11 +100,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if doctor is already booked at this time
     const existingBooking: any = await query(
-      `SELECT COUNT(*) as count FROM Pertemuan 
-       WHERE ID_Dokter = ? 
-       AND Tanggal = ? 
+      `SELECT COUNT(*) as count FROM Pertemuan
+       WHERE ID_Dokter = ?
+       AND Tanggal = ?
        AND Waktu_mulai = ?`,
       [ID_Dokter, Tanggal, Waktu_mulai]
     );
@@ -115,23 +115,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate appointment ID
     const countResult: any = await query(
       'SELECT COUNT(*) as count FROM Pertemuan'
     );
     const count = countResult[0].count;
-    const ID_pertemuan = count + 1;
+    const ID_pertemuan = `PRT${String(count + 1).padStart(3, '0')}`;
 
-    // Format tanggal untuk memastikan tidak ada timezone shift
-    // Tanggal dari frontend sudah dalam format YYYY-MM-DD
-    const tanggalFormatted = Tanggal; // Keep as is, MySQL DATE type doesn't have timezone
+    const tanggalFormatted = Tanggal;
 
-    // Insert into Pertemuan table
     const result: any = await query(
       `INSERT INTO Pertemuan
-       (ID_pertemuan, ID_Pasien, ID_Dokter, Tanggal, Waktu_mulai)
-       VALUES (?, ?, ?, ?, ?)`,
-      [ID_pertemuan, ID_Pasien, ID_Dokter, tanggalFormatted, Waktu_mulai]
+       (ID_pertemuan, ID_Pasien, ID_Dokter, Tanggal, Waktu_mulai, status)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [ID_pertemuan, ID_Pasien, ID_Dokter, tanggalFormatted, Waktu_mulai, 'scheduled']
     );
 
     return NextResponse.json({
@@ -168,10 +164,12 @@ export async function PUT(request: NextRequest) {
     const setParts = Object.keys(updates).map(key => `${key} = ?`);
     const values = Object.values(updates);
 
-    await query(
-      `UPDATE Pertemuan SET ${setParts.join(', ')} WHERE ID_pertemuan = ?`,
-      [...values, ID_pertemuan]
-    );
+    if (setParts.length > 0) {
+      await query(
+        `UPDATE Pertemuan SET ${setParts.join(', ')} WHERE ID_pertemuan = ?`,
+        [...values, ID_pertemuan]
+      );
+    }
 
     return NextResponse.json({
       success: true,

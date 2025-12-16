@@ -7,7 +7,6 @@ export default function NewPatientPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     Nama: '',
-    NIK: '',
     Tanggal_lahir: '',
     Jenis_kelamin: 'Laki-laki',
     No_telpon: '',
@@ -100,23 +99,6 @@ export default function NewPatientPage() {
                 onChange={(e) => setFormData({ ...formData, Nama: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 placeholder="Masukkan nama lengkap"
-              />
-            </div>
-
-            {/* NIK */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                NIK <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                maxLength={16}
-                pattern="[0-9]{16}"
-                value={formData.NIK}
-                onChange={(e) => setFormData({ ...formData, NIK: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="16 digit NIK"
               />
             </div>
 

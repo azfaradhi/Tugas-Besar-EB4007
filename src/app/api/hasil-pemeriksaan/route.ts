@@ -47,14 +47,27 @@ export async function GET(request: NextRequest) {
     const results:any = await query(sql, params);
 
     for (const result of results) {
-      const obatResult = await query(
-        `SELECT ho.*, o.Nama, o.Kategori
+      const obatResult: any = await query(
+        `SELECT ho.*, o.Nama, o.Kategori, o.Aturan_pakai, o.Harga_satuan
          FROM Hasil_Obat ho
          LEFT JOIN Obat o ON ho.ID_Obat = o.ID_obat
          WHERE ho.ID_hasil = ?`,
         [result.ID_hasil]
       );
-      result.obat = obatResult;
+
+      // Map medication fields to match frontend expectations
+      result.obat = obatResult.map((med: any) => ({
+        ID_obat: med.ID_Obat,
+        nama_obat: med.Nama,
+        kategori: med.Kategori,
+        dosis: med.Dosis,
+        frekuensi: med.Frekuensi,
+        durasi_hari: med.Durasi_hari,
+        qty: med.Qty,
+        harga_satuan: med.Harga_satuan,
+        subtotal: (med.Harga_satuan || 0) * (med.Qty || 0),
+        catatan: med.Aturan_pakai
+      }));
 
       const ronsenResult:any = await query(
         `SELECT * FROM Ronsen WHERE ID_hasil = ?`,
@@ -90,17 +103,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { 
-      ID_pertemuan, 
-      diagnosis, 
-      symptoms, 
-      vital_signs,  
-      treatment_plan, 
-      notes, 
-      status, 
-      obat, 
-      ronsen, 
-      urin_test 
+    const {
+      ID_pertemuan,
+      diagnosis,
+      symptoms,
+      vital_signs,
+      treatment_plan,
+      notes,
+      status,
+      obat,
+      ronsen,
+      urin_test
     } = body;
 
     const vital_signs_str = JSON.stringify(vital_signs);
@@ -116,20 +129,20 @@ export async function POST(request: NextRequest) {
       'SELECT COUNT(*) as count FROM Hasil_Pemeriksaan'
     );
     const count = countResult[0].count;
-    const insertResult:any  = await query(
-      `INSERT INTO Hasil_Pemeriksaan 
-       (ID_pertemuan, diagnosis, symptoms, vital_signs, treatment_plan, notes, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [ID_pertemuan, diagnosis, symptoms, vital_signs_str, treatment_plan, notes, status || 'completed']
-    );
+    const ID_hasil = `HSL${String(count + 1).padStart(3, '0')}`;
 
-    const ID_hasil = insertResult.insertId;
+    await query(
+      `INSERT INTO Hasil_Pemeriksaan
+       (ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs, treatment_plan, notes, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs_str, treatment_plan, notes, status || 'completed']
+    );
 
     if (obat && Array.isArray(obat) && obat.length > 0) {
       for (const item of obat) {
         await query(
-          'INSERT INTO Hasil_Obat (ID_hasil, ID_Obat) VALUES (?, ?)',
-          [ID_hasil, item.ID_Obat]
+          'INSERT INTO Hasil_Obat (ID_hasil, ID_Obat, Dosis, Frekuensi, Durasi_hari, Qty) VALUES (?, ?, ?, ?, ?, ?)',
+          [ID_hasil, item.ID_Obat, item.Dosis || null, item.Frekuensi || null, item.Durasi_hari || null, item.Qty || null]
         );
       }
     }
@@ -139,11 +152,11 @@ export async function POST(request: NextRequest) {
         const ronsenCount: any = await query(
           'SELECT COUNT(*) as count FROM Ronsen'
         );
-        const ID_ronsen = `R${String(ronsenCount[0].count + 1).padStart(6, '0')}`;
+        const ID_ronsen = `RNS${String(ronsenCount[0].count + 1).padStart(3, '0')}`;
 
         await query(
-          'INSERT INTO Ronsen (ID_ronsen, ID_hasil, imgSrc) VALUES (?, ?, ?)',
-          [ID_ronsen, ID_hasil, item.imgSrc]
+          'INSERT INTO Ronsen (ID_ronsen, ID_hasil, imgSrc, keterangan) VALUES (?, ?, ?, ?)',
+          [ID_ronsen, ID_hasil, item.imgSrc, item.keterangan || null]
         );
       }
     }
@@ -152,7 +165,7 @@ export async function POST(request: NextRequest) {
       const urinCount: any = await query(
         'SELECT COUNT(*) as count FROM UrinTest'
       );
-      const ID_uji = `UT${String(urinCount[0].count + 1).padStart(6, '0')}`;
+      const ID_uji = `UJI${String(urinCount[0].count + 1).padStart(3, '0')}`;
 
       const fields = Object.keys(urin_test).filter(k => k !== 'ID_uji');
       const values = fields.map(k => urin_test[k]);
@@ -186,12 +199,22 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { ID_hasil, obat, ronsen, urin_test } = body;
+    const { ID_hasil, obat, ronsen, urin_test, ...updates } = body;
 
     if (!ID_hasil) {
       return NextResponse.json(
         { error: 'ID_hasil is required' },
         { status: 400 }
+      );
+    }
+
+    if (Object.keys(updates).length > 0) {
+      const setParts = Object.keys(updates).map(key => `${key} = ?`);
+      const values = Object.values(updates);
+
+      await query(
+        `UPDATE Hasil_Pemeriksaan SET ${setParts.join(', ')} WHERE ID_hasil = ?`,
+        [...values, ID_hasil]
       );
     }
 
@@ -201,8 +224,8 @@ export async function PUT(request: NextRequest) {
       if (Array.isArray(obat) && obat.length > 0) {
         for (const item of obat) {
           await query(
-            'INSERT INTO Hasil_Obat (ID_hasil, ID_Obat) VALUES (?, ?)',
-            [ID_hasil, item.ID_Obat]
+            'INSERT INTO Hasil_Obat (ID_hasil, ID_Obat, Dosis, Frekuensi, Durasi_hari, Qty) VALUES (?, ?, ?, ?, ?, ?)',
+            [ID_hasil, item.ID_Obat, item.Dosis || null, item.Frekuensi || null, item.Durasi_hari || null, item.Qty || null]
           );
         }
       }
@@ -216,11 +239,11 @@ export async function PUT(request: NextRequest) {
           const ronsenCount: any = await query(
             'SELECT COUNT(*) as count FROM Ronsen'
           );
-          const ID_ronsen = `R${String(ronsenCount[0].count + 1).padStart(6, '0')}`;
+          const ID_ronsen = `RNS${String(ronsenCount[0].count + 1).padStart(3, '0')}`;
 
           await query(
-            'INSERT INTO Ronsen (ID_ronsen, ID_hasil, imgSrc) VALUES (?, ?, ?)',
-            [ID_ronsen, ID_hasil, item.imgSrc]
+            'INSERT INTO Ronsen (ID_ronsen, ID_hasil, imgSrc, keterangan) VALUES (?, ?, ?, ?)',
+            [ID_ronsen, ID_hasil, item.imgSrc, item.keterangan || null]
           );
         }
       }
@@ -245,7 +268,7 @@ export async function PUT(request: NextRequest) {
         const urinCount: any = await query(
           'SELECT COUNT(*) as count FROM UrinTest'
         );
-        const ID_uji = `UT${String(urinCount[0].count + 1).padStart(6, '0')}`;
+        const ID_uji = `UJI${String(urinCount[0].count + 1).padStart(3, '0')}`;
 
         const fields = Object.keys(urin_test).filter(k => k !== 'ID_uji');
         const values = fields.map(k => urin_test[k]);

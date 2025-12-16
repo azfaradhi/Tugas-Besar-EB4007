@@ -6,35 +6,65 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const nik = searchParams.get('nik');
     const search = searchParams.get('search');
     const role = searchParams.get('role');
 
-    let sql = 'SELECT * FROM Karyawan WHERE 1=1';
+    let sql: string;
     const params: any[] = [];
 
+    if (role === 'doctor') {
+      sql = `
+        SELECT
+          k.*,
+          d.Spesialis,
+          d.STR,
+          d.Status,
+          d.Shift,
+          d.ID_Department
+        FROM Karyawan k
+        INNER JOIN Dokter d ON k.ID_karyawan = d.ID_karyawan
+        WHERE 1=1
+      `;
+    } else if (role === 'resepsionis') {
+      sql = `
+        SELECT k.*
+        FROM Karyawan k
+        INNER JOIN Resepsionis r ON k.ID_karyawan = r.ID_karyawan
+        WHERE 1=1
+      `;
+    } else if (role === 'operasional') {
+      sql = `
+        SELECT k.*
+        FROM Karyawan k
+        INNER JOIN Operasional o ON k.ID_karyawan = o.ID_karyawan
+        WHERE 1=1
+      `;
+    } else if (role === 'perawat') {
+      sql = `
+        SELECT k.*, p.Shift
+        FROM Karyawan k
+        INNER JOIN Perawat p ON k.ID_karyawan = p.ID_karyawan
+        WHERE 1=1
+      `;
+    } else {
+      sql = 'SELECT * FROM Karyawan WHERE 1=1';
+    }
+
+    const tableAlias = role ? 'k' : '';
+    const dot = role ? '.' : '';
+
     if (id) {
-      sql += ' AND ID_karyawan = ?';
+      sql += ` AND ${tableAlias}${dot}ID_karyawan = ?`;
       params.push(id);
     }
 
-    if (nik) {
-      sql += ' AND NIK = ?';
-      params.push(nik);
-    }
-
     if (search) {
-      sql += ' AND (Nama LIKE ? OR NIK LIKE ? OR No_telpon LIKE ?)';
+      sql += ` AND (${tableAlias}${dot}Nama LIKE ? OR ${tableAlias}${dot}No_telpon LIKE ?)`;
       const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm);
     }
 
-    if (role) {
-      sql += ' AND Role = ?';
-      params.push(role);
-    }
-
-    sql += ' ORDER BY Nama ASC';
+    sql += ` ORDER BY ${tableAlias}${dot}Nama ASC`;
 
     const karyawans = await query(sql, params);
 
@@ -61,43 +91,105 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       Nama,
-      NIK,
+      Tanggal_lahir,
+      Jenis_kelamin,
       No_telpon,
-      Email,
       Alamat,
-      Role
+      role,
+      Spesialis,
+      STR,
+      ID_Department,
+      Shift,
+      createUser,
+      username,
+      password
     } = body;
 
-    if (!Nama || !NIK || !Role) {
+    if (!Nama || !Tanggal_lahir || !Jenis_kelamin) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
+    const birthDate = new Date(Tanggal_lahir);
+    const today = new Date();
+    let Umur = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      Umur--;
+    }
+
     const countResult: any = await query(
       'SELECT COUNT(*) as count FROM Karyawan'
     );
     const count = countResult[0].count;
-    const ID_karyawan = `K${String(count + 1).padStart(6, '0')}`;
+    const ID_karyawan = `K${String(count + 1).padStart(3, '0')}`;
+
+    let user_id = null;
+
+    if (createUser && username && password && role) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      let userRole = 'staff_registration';
+      if (role === 'doctor') {
+        userRole = 'doctor';
+      } else if (role === 'resepsionis') {
+        userRole = 'staff_registration';
+      } else if (role === 'operasional') {
+        userRole = 'staff_registration';
+      } else if (role === 'perawat') {
+        userRole = 'staff_registration';
+      }
+
+      const userResult: any = await query(
+        'INSERT INTO users (username, password, role, profile_id) VALUES (?, ?, ?, ?)',
+        [username, hashedPassword, userRole, ID_karyawan]
+      );
+      user_id = userResult.insertId;
+    }
 
     await query(
       `INSERT INTO Karyawan
-       (ID_karyawan, Nama, NIK, No_telpon, Email, Alamat, Role)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [ID_karyawan, Nama, NIK, No_telpon || null, Email || null, Alamat || null, Role]
+       (ID_karyawan, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ID_karyawan, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon || null, Alamat || null]
     );
+
+    if (role === 'doctor') {
+      await query(
+        'INSERT INTO Dokter (ID_karyawan, Spesialis, STR, ID_Department, Status, Shift) VALUES (?, ?, ?, ?, ?, ?)',
+        [ID_karyawan, Spesialis || null, STR || null, ID_Department || null, 'Aktif', Shift || 'Pagi']
+      );
+    } else if (role === 'resepsionis') {
+      await query(
+        'INSERT INTO Resepsionis (ID_karyawan) VALUES (?)',
+        [ID_karyawan]
+      );
+    } else if (role === 'operasional') {
+      await query(
+        'INSERT INTO Operasional (ID_karyawan) VALUES (?)',
+        [ID_karyawan]
+      );
+    } else if (role === 'perawat') {
+      await query(
+        'INSERT INTO Perawat (ID_karyawan, Shift) VALUES (?, ?)',
+        [ID_karyawan, Shift || 'Pagi']
+      );
+    }
 
     return NextResponse.json({
       success: true,
       ID_karyawan,
+      user_id,
       message: 'Karyawan created successfully'
     });
   } catch (error: any) {
     console.error('Error creating karyawan:', error);
     if (error.code === 'ER_DUP_ENTRY') {
       return NextResponse.json(
-        { error: 'NIK already exists' },
+        { error: 'Username already exists' },
         { status: 400 }
       );
     }
@@ -116,7 +208,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { ID_karyawan, ...updates } = body;
+    const { ID_karyawan, Tanggal_lahir, ...updates } = body;
 
     if (!ID_karyawan) {
       return NextResponse.json(
@@ -125,13 +217,27 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (Tanggal_lahir) {
+      const birthDate = new Date(Tanggal_lahir);
+      const today = new Date();
+      let Umur = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        Umur--;
+      }
+      updates.Tanggal_lahir = Tanggal_lahir;
+      updates.Umur = Umur;
+    }
+
     const setParts = Object.keys(updates).map(key => `${key} = ?`);
     const values = Object.values(updates);
 
-    await query(
-      `UPDATE Karyawan SET ${setParts.join(', ')} WHERE ID_karyawan = ?`,
-      [...values, ID_karyawan]
-    );
+    if (setParts.length > 0) {
+      await query(
+        `UPDATE Karyawan SET ${setParts.join(', ')} WHERE ID_karyawan = ?`,
+        [...values, ID_karyawan]
+      );
+    }
 
     return NextResponse.json({
       success: true,

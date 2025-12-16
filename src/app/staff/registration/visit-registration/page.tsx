@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 interface Patient {
   ID_pasien: string;
   Nama: string;
-  NIK: string;
 }
 
 interface Doctor {
@@ -45,7 +44,7 @@ export default function VisitRegistrationPage() {
       const filtered = patients.filter(
         (p) =>
           p.Nama.toLowerCase().includes(searchPatient.toLowerCase()) ||
-          p.NIK.includes(searchPatient)
+          p.ID_pasien.toLowerCase().includes(searchPatient.toLowerCase())
       );
       setFilteredPatients(filtered);
     } else {
@@ -137,7 +136,7 @@ export default function VisitRegistrationPage() {
                 value={searchPatient}
                 onChange={(e) => setSearchPatient(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="Cari berdasarkan nama atau NIK..."
+                placeholder="Cari berdasarkan nama atau ID pasien..."
               />
               {filteredPatients.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -148,7 +147,6 @@ export default function VisitRegistrationPage() {
                       className="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
                     >
                       <p className="font-medium text-gray-900">{patient.Nama}</p>
-                      <p className="text-sm text-gray-600">NIK: {patient.NIK}</p>
                       <p className="text-xs text-gray-500">ID: {patient.ID_pasien}</p>
                     </div>
                   ))}

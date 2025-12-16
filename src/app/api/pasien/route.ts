@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const nik = searchParams.get('nik');
+    const userId = searchParams.get('userId');
     const search = searchParams.get('search');
 
     let sql = 'SELECT * FROM Pasien WHERE 1=1';
@@ -17,15 +17,15 @@ export async function GET(request: NextRequest) {
       params.push(id);
     }
 
-    if (nik) {
-      sql += ' AND NIK = ?';
-      params.push(nik);
+    if (userId) {
+      sql += ' AND user_id = ?';
+      params.push(userId);
     }
 
     if (search) {
-      sql += ' AND (Nama LIKE ? OR NIK LIKE ? OR No_telpon LIKE ?)';
+      sql += ' AND (Nama LIKE ? OR No_telpon LIKE ?)';
       const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm);
     }
 
     sql += ' ORDER BY Nama ASC';
@@ -50,17 +50,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       Nama,
-      NIK,
       Tanggal_lahir,
       Jenis_kelamin,
       No_telpon,
       Alamat,
       Golongan_darah,
       Riwayat_penyakit,
-      Nama_ibu_kandung
+      Nama_ibu_kandung,
+      createUser,
+      username,
+      password
     } = body;
 
-    if (!Nama || !NIK || !Tanggal_lahir || !Jenis_kelamin) {
+    if (!Nama || !Tanggal_lahir || !Jenis_kelamin) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -81,23 +83,38 @@ export async function POST(request: NextRequest) {
       Umur--;
     }
 
+    let user_id = null;
+
+    // Create user account if requested
+    if (createUser && username && password) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const userResult: any = await query(
+        'INSERT INTO users (username, password, role, profile_id) VALUES (?, ?, ?, ?)',
+        [username, hashedPassword, 'patient', ID_pasien]
+      );
+      user_id = userResult.insertId;
+    }
+
     await query(
       `INSERT INTO Pasien
-       (ID_pasien, Nama, NIK, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah, Riwayat_penyakit, Nama_ibu_kandung)
+       (ID_pasien, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah, Riwayat_penyakit, Nama_ibu_kandung)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ID_pasien, Nama, NIK, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon || null, Alamat || null, Golongan_darah || null, Riwayat_penyakit || null, Nama_ibu_kandung || null]
+      [ID_pasien, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon || null, Alamat || null, Golongan_darah || null, Riwayat_penyakit || null, Nama_ibu_kandung || null]
     );
 
     return NextResponse.json({
       success: true,
       ID_pasien,
+      user_id,
       message: 'Pasien created successfully'
     });
   } catch (error: any) {
     console.error('Error creating pasien:', error);
     if (error.code === 'ER_DUP_ENTRY') {
       return NextResponse.json(
-        { error: 'NIK already exists' },
+        { error: 'Username already exists' },
         { status: 400 }
       );
     }

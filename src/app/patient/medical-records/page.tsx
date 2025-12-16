@@ -11,9 +11,9 @@ interface HasilPemeriksaan {
   nama_dokter: string;
   Spesialis: string;
   obat: Array<{
-    ID_Obat: string;
-    Nama: string;
-    Kategori: string;
+    ID_obat: string;
+    nama_obat: string;
+    kategori: string;
   }>;
   ronsen: Array<{
     ID_ronsen: string;

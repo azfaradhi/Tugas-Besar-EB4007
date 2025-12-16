@@ -11,7 +11,6 @@ interface Doctor {
   STR?: string;
   Status?: string;
   Shift?: string;
-  NIK?: string;
   No_telpon?: string;
 }
 

@@ -12,7 +12,6 @@ interface BillingFarmasiRow {
   Jenis_pembayaran: string | null;
   isLunas: number;
   nama_pasien: string;
-  NIK: string;
 }
 
 export async function GET(req: NextRequest) {
@@ -37,8 +36,7 @@ export async function GET(req: NextRequest) {
         bf.Lunas_date,
         bf.Jenis_pembayaran,
         bf.isLunas,
-        p.Nama AS nama_pasien,
-        p.NIK
+        p.Nama AS nama_pasien
       FROM Billing_Farmasi bf
       JOIN Pasien p ON p.ID_pasien = bf.ID_pasien
       WHERE bf.ID_pasien = ?

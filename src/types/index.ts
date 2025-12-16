@@ -20,8 +20,8 @@ export interface User {
 
 export interface Patient {
   ID_pasien: string;  // VARCHAR(20) PRIMARY KEY
+  user_id?: number;  // INT UNIQUE - foreign key to users.id
   Nama: string;
-  NIK: string;  // CHAR(16)
   Tanggal_lahir: Date;
   Umur?: number;
   Jenis_kelamin: 'Laki-laki' | 'Perempuan';
@@ -35,8 +35,8 @@ export interface Patient {
 // Karyawan base interface
 export interface Karyawan {
   ID_karyawan: string;  // VARCHAR(20) PRIMARY KEY
+  user_id?: number;  // INT UNIQUE - foreign key to users.id
   Nama: string;
-  NIK: string;  // CHAR(16)
   Tanggal_lahir: Date;
   Umur?: number;
   Jenis_kelamin: 'Laki-laki' | 'Perempuan';

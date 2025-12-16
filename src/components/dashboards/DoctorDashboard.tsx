@@ -174,7 +174,7 @@ export default function DoctorDashboard({ user }: DoctorDashboardProps) {
         </div>
 
         {/* IoT Patient Vitals Monitor Card */}
-        <Link href="/doctor/patient-vitals">
+        {/* <Link href="/doctor/patient-vitals">
           <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-xl shadow-md p-6 border-l-4 border-red-500 hover:shadow-xl transition duration-200 cursor-pointer mb-8">
             <div className="flex items-center justify-between">
               <div className="flex-1">
@@ -199,7 +199,7 @@ export default function DoctorDashboard({ user }: DoctorDashboardProps) {
               </div>
             </div>
           </div>
-        </Link>
+        </Link> */}
 
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="border-b border-gray-200">

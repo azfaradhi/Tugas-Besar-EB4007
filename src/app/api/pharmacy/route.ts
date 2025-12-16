@@ -8,25 +8,23 @@ interface PharmacyRow {
   status_hasil: 'draft' | 'completed';
 
   ID_pertemuan: string;
-  Tanggal: string;       // DATE (string dari MySQL)
-  Waktu_mulai: string;   // TIME (string dari MySQL)
+  Tanggal: string;
+  Waktu_mulai: string;
   Waktu_selesai: string | null;
-  status_pertemuan: 'scheduled' | 'completed' | 'cancelled';
+  status_pertemuan: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
   dokter_nama: string;
 
   ID_Obat: string;
   obat_nama: string;
   kategori: string;
+  Aturan_pakai: string | null;
+  Harga_satuan: number | null;
 
   Dosis: string | null;
   Frekuensi: string | null;
   Durasi_hari: number | null;
-  Aturan_pakai: string | null;
-
   Qty: number | null;
-  Harga_satuan: number | null;
-  Subtotal: number | null;
 
   ID_billing_farmasi: string | null;
   Total_harga: number | null;
@@ -49,7 +47,7 @@ export async function GET(req: NextRequest) {
   try {
     const [rows] = await db.query<RowDataPacket[]>(
       `
-      SELECT 
+      SELECT
         hp.ID_hasil,
         hp.diagnosis,
         hp.status AS status_hasil,
@@ -65,14 +63,13 @@ export async function GET(req: NextRequest) {
         ho.ID_Obat,
         o.Nama AS obat_nama,
         o.Kategori AS kategori,
+        o.Aturan_pakai,
+        o.Harga_satuan,
 
         ho.Dosis,
         ho.Frekuensi,
         ho.Durasi_hari,
-        ho.Aturan_pakai,
         ho.Qty,
-        ho.Harga_satuan,
-        ho.Subtotal,
 
         bf.ID_billing_farmasi,
         bf.Total_harga,
@@ -94,7 +91,6 @@ export async function GET(req: NextRequest) {
 
     const typedRows = rows as PharmacyRow[];
 
-    // Group per ID_hasil (1 hasil pemeriksaan = 1 resep)
     const map: Record<string, any> = {};
 
     const now = new Date();
@@ -131,6 +127,8 @@ export async function GET(req: NextRequest) {
         };
       }
 
+      const subtotal = (row.Harga_satuan || 0) * (row.Qty || 0);
+
       map[row.ID_hasil].medications.push({
         ID_obat: row.ID_Obat,
         nama_obat: row.obat_nama,
@@ -141,7 +139,7 @@ export async function GET(req: NextRequest) {
         catatan: row.Aturan_pakai,
         qty: row.Qty,
         harga_satuan: row.Harga_satuan,
-        subtotal: row.Subtotal,
+        subtotal: subtotal,
       });
     }
 
