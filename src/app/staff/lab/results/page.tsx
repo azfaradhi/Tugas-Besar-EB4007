@@ -1,70 +1,86 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+
+type UrinEnumProtein = 'Negatif' | 'Trace' | '+1' | '+2' | '+3' | '+4' | '';
+type UrinEnumKetone = 'Negatif' | 'Trace' | '+1' | '+2' | '+3' | '';
 
 function ResultsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const type = searchParams.get('type');
-  const id = searchParams.get('id');
+
+  const type = searchParams.get('type'); // 'urin' | 'ronsen'
+  const id = searchParams.get('id');     // ID_hasil
+
+  // ✅ view-only param (accept: view=1 / view=true / readonly=1)
+  const viewParam = (searchParams.get('view') ?? searchParams.get('readonly') ?? '').toLowerCase();
+  const startReadOnly = useMemo(() => viewParam === '1' || viewParam === 'true' || viewParam === 'yes', [viewParam]);
+
+  // editing state (kalau view-only, default false; kalau bukan, default true)
+  const [isEditing, setIsEditing] = useState(!startReadOnly);
 
   const [loading, setLoading] = useState(true);
-  const [testInfo, setTestInfo] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [testInfo, setTestInfo] = useState<any>(null);
 
-  const [urinData, setUrinData] = useState({
-    Warna: '',
+  // ✅ sesuai schema UrinTest
+  const [urinData, setUrinData] = useState<{
+    pH: string;
+    Protein: UrinEnumProtein;
+    Glukosa: UrinEnumProtein;
+    Ketone: UrinEnumKetone;
+  }>({
     pH: '',
     Protein: '',
     Glukosa: '',
     Ketone: '',
-    Bilirubin: '',
-    Urobilin: '',
-    Hemoglobin: '',
-    Sel_darah_putih: '',
-    Sel_darah_merah: '',
-    Bakteri: '',
-    Sel_epitheal: '',
-    Crystals: '',
-    Casts: '',
-    Organisme_terisolasi: '',
-    Antimicrobial: '',
-    Trimethoprim: '',
-    Cefuroxime: '',
-    Amoxycillin_Clavulanic_acid: '',
-    Cephalexin: '',
-    Nitrofurantoin: '',
-    Ciprofloxacin: '',
-    Doxycycline: '',
-    Gentamicin: '',
   });
 
-  const [ronsenData, setRonsenData] = useState({
+  // ✅ ronsen minimal: imgSrc
+  const [ronsenData, setRonsenData] = useState<{ imgSrc: string }>({
     imgSrc: '',
   });
 
+  // kalau param view berubah (user navigate), sync state
   useEffect(() => {
-    if (id) {
-      fetchTestInfo();
-    }
+    setIsEditing(!startReadOnly);
+  }, [startReadOnly]);
+
+  useEffect(() => {
+    if (!id) return;
+    fetchTestInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchTestInfo = async () => {
     try {
+      setLoading(true);
       const response = await fetch(`/api/hasil-pemeriksaan?id=${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.hasil_pemeriksaan && data.hasil_pemeriksaan.length > 0) {
-          const test = data.hasil_pemeriksaan[0];
-          setTestInfo(test);
+      if (!response.ok) return;
 
-          if (type === 'urin' && test.urin_test) {
-            setUrinData({ ...urinData, ...test.urin_test });
-          } else if (type === 'ronsen' && test.ronsen && test.ronsen.length > 0) {
-            setRonsenData({ imgSrc: test.ronsen[0].imgSrc || '' });
-          }
-        }
+      const data = await response.json();
+      if (!data?.hasil_pemeriksaan?.length) return;
+
+      const test = data.hasil_pemeriksaan[0];
+      setTestInfo(test);
+
+      if (type === 'urin' && test.urin_test) {
+        setUrinData((prev) => ({
+          ...prev,
+          pH: test.urin_test.pH != null ? String(test.urin_test.pH) : '',
+          Protein: test.urin_test.Protein ?? '',
+          Glukosa: test.urin_test.Glukosa ?? '',
+          Ketone: test.urin_test.Ketone ?? '',
+        }));
+      }
+
+      if (type === 'ronsen') {
+        const img =
+          test?.ronsen?.imgSrc ??
+          (Array.isArray(test?.ronsen) ? test.ronsen?.[0]?.imgSrc : '') ??
+          '';
+        setRonsenData({ imgSrc: img });
       }
     } catch (error) {
       console.error('Error fetching test info:', error);
@@ -75,27 +91,40 @@ function ResultsPageContent() {
 
   const handleSaveUrinTest = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
+    if (!id) return;
+    if (!isEditing) return;
 
+    if (!urinData.pH && !urinData.Protein && !urinData.Glukosa && !urinData.Ketone) {
+      alert('Isi minimal salah satu hasil urin sebelum menyimpan.');
+      return;
+    }
+
+    setSaving(true);
     try {
-      const cleanData = Object.fromEntries(
-        Object.entries(urinData).filter(([_, v]) => v !== '')
-      );
+      const cleanData = Object.fromEntries(Object.entries(urinData).filter(([_, v]) => v !== ''));
+
+      const payload = {
+        ID_hasil: id,
+        urin_test: {
+          ...cleanData,
+          ...(cleanData.pH ? { pH: Number(cleanData.pH) } : {}),
+        },
+      };
 
       const response = await fetch('/api/hasil-pemeriksaan', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ID_hasil: id,
-          urin_test: cleanData,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
         alert('Hasil tes urin berhasil disimpan!');
+        // setelah save, kalau awalnya view-only, balik ke view mode
+        if (startReadOnly) setIsEditing(false);
         router.push('/staff/lab/requests');
       } else {
-        alert('Gagal menyimpan hasil tes');
+        const err = await response.json().catch(() => ({}));
+        alert(err?.error || 'Gagal menyimpan hasil tes urin');
       }
     } catch (error) {
       console.error('Error saving urin test:', error);
@@ -107,23 +136,32 @@ function ResultsPageContent() {
 
   const handleSaveRonsen = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
+    if (!id) return;
+    if (!isEditing) return;
 
+    if (!ronsenData.imgSrc.trim()) {
+      alert('URL gambar rontgen wajib diisi.');
+      return;
+    }
+
+    setSaving(true);
     try {
       const response = await fetch('/api/hasil-pemeriksaan', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ID_hasil: id,
-          ronsen: [ronsenData],
+          ronsen: [{ imgSrc: ronsenData.imgSrc }],
         }),
       });
 
       if (response.ok) {
         alert('Hasil rontgen berhasil disimpan!');
+        if (startReadOnly) setIsEditing(false);
         router.push('/staff/lab/requests');
       } else {
-        alert('Gagal menyimpan hasil rontgen');
+        const err = await response.json().catch(() => ({}));
+        alert(err?.error || 'Gagal menyimpan hasil rontgen');
       }
     } catch (error) {
       console.error('Error saving ronsen:', error);
@@ -133,7 +171,7 @@ function ResultsPageContent() {
     }
   };
 
-  if (!type || !id) {
+  if (!type || !id || (type !== 'urin' && type !== 'ronsen')) {
     return (
       <div className="p-8">
         <p className="text-red-600">Parameter tidak valid</p>
@@ -151,17 +189,42 @@ function ResultsPageContent() {
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <button
-          onClick={() => router.back()}
-          className="text-indigo-600 hover:text-indigo-800 mb-2"
-        >
-          ← Kembali
-        </button>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          {type === 'urin' ? 'Hasil Tes Urin' : 'Hasil Rontgen'}
-        </h1>
-        <p className="text-gray-600">Input hasil pemeriksaan laboratorium</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <button onClick={() => router.back()} className="text-indigo-600 hover:text-indigo-800 mb-2">
+            ← Kembali
+          </button>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            {type === 'urin' ? 'Hasil Tes Urin' : 'Hasil Rontgen'}
+          </h1>
+          <p className="text-gray-600">
+            {startReadOnly && !isEditing ? 'Mode: View-only' : 'Mode: Edit'}
+          </p>
+        </div>
+
+        {/* ✅ tombol Edit / Batal Edit (khusus view-only) */}
+        {startReadOnly && (
+          <div className="flex gap-2">
+            {!isEditing ? (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+              >
+                Edit
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsEditing(false);
+                  fetchTestInfo(); // reset ke data DB
+                }}
+                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                Batal Edit
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {testInfo && (
@@ -179,7 +242,7 @@ function ResultsPageContent() {
             <div>
               <p className="text-sm text-gray-600">Tanggal</p>
               <p className="font-medium text-gray-900">
-                {new Date(testInfo.tanggal_pertemuan).toLocaleDateString('id-ID')}
+                {testInfo.tanggal_pertemuan ? new Date(testInfo.tanggal_pertemuan).toLocaleDateString('id-ID') : '-'}
               </p>
             </div>
             <div>
@@ -190,28 +253,12 @@ function ResultsPageContent() {
         </div>
       )}
 
+      {/* ✅ URIN */}
       {type === 'urin' && (
         <form onSubmit={handleSaveUrinTest} className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-6">Hasil Tes Urin</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Warna</label>
-              <select
-                value={urinData.Warna}
-                onChange={(e) => setUrinData({ ...urinData, Warna: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="Kuning Muda">Kuning Muda</option>
-                <option value="Kuning">Kuning</option>
-                <option value="Kuning Tua">Kuning Tua</option>
-                <option value="Merah">Merah</option>
-                <option value="Coklat">Coklat</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">pH</label>
               <input
@@ -220,6 +267,8 @@ function ResultsPageContent() {
                 value={urinData.pH}
                 onChange={(e) => setUrinData({ ...urinData, pH: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                placeholder="contoh: 6.5"
+                disabled={!isEditing || saving}
               />
             </div>
 
@@ -227,8 +276,9 @@ function ResultsPageContent() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Protein</label>
               <select
                 value={urinData.Protein}
-                onChange={(e) => setUrinData({ ...urinData, Protein: e.target.value })}
+                onChange={(e) => setUrinData({ ...urinData, Protein: e.target.value as UrinEnumProtein })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                disabled={!isEditing || saving}
               >
                 <option value="">-</option>
                 <option value="Negatif">Negatif</option>
@@ -244,8 +294,9 @@ function ResultsPageContent() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Glukosa</label>
               <select
                 value={urinData.Glukosa}
-                onChange={(e) => setUrinData({ ...urinData, Glukosa: e.target.value })}
+                onChange={(e) => setUrinData({ ...urinData, Glukosa: e.target.value as UrinEnumProtein })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                disabled={!isEditing || saving}
               >
                 <option value="">-</option>
                 <option value="Negatif">Negatif</option>
@@ -261,8 +312,9 @@ function ResultsPageContent() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Ketone</label>
               <select
                 value={urinData.Ketone}
-                onChange={(e) => setUrinData({ ...urinData, Ketone: e.target.value })}
+                onChange={(e) => setUrinData({ ...urinData, Ketone: e.target.value as UrinEnumKetone })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                disabled={!isEditing || saving}
               >
                 <option value="">-</option>
                 <option value="Negatif">Negatif</option>
@@ -272,191 +324,13 @@ function ResultsPageContent() {
                 <option value="+3">+3</option>
               </select>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bilirubin</label>
-              <select
-                value={urinData.Bilirubin}
-                onChange={(e) => setUrinData({ ...urinData, Bilirubin: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="Negatif">Negatif</option>
-                <option value="+1">+1</option>
-                <option value="+2">+2</option>
-                <option value="+3">+3</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Urobilin</label>
-              <select
-                value={urinData.Urobilin}
-                onChange={(e) => setUrinData({ ...urinData, Urobilin: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="Negatif">Negatif</option>
-                <option value="Normal">Normal</option>
-                <option value="+1">+1</option>
-                <option value="+2">+2</option>
-                <option value="+3">+3</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hemoglobin</label>
-              <select
-                value={urinData.Hemoglobin}
-                onChange={(e) => setUrinData({ ...urinData, Hemoglobin: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="Negatif">Negatif</option>
-                <option value="Trace">Trace</option>
-                <option value="+1">+1</option>
-                <option value="+2">+2</option>
-                <option value="+3">+3</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sel Darah Putih</label>
-              <select
-                value={urinData.Sel_darah_putih}
-                onChange={(e) => setUrinData({ ...urinData, Sel_darah_putih: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="0-5">0-5</option>
-                <option value="5-10">5-10</option>
-                <option value="10-20">10-20</option>
-                <option value=">20">&gt;20</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sel Darah Merah</label>
-              <select
-                value={urinData.Sel_darah_merah}
-                onChange={(e) => setUrinData({ ...urinData, Sel_darah_merah: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="0-3">0-3</option>
-                <option value="3-5">3-5</option>
-                <option value="5-10">5-10</option>
-                <option value=">10">&gt;10</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bakteri</label>
-              <select
-                value={urinData.Bakteri}
-                onChange={(e) => setUrinData({ ...urinData, Bakteri: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="Negatif">Negatif</option>
-                <option value="+1">+1</option>
-                <option value="+2">+2</option>
-                <option value="+3">+3</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sel Epitel</label>
-              <select
-                value={urinData.Sel_epitheal}
-                onChange={(e) => setUrinData({ ...urinData, Sel_epitheal: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="Sedikit">Sedikit</option>
-                <option value="Sedang">Sedang</option>
-                <option value="Banyak">Banyak</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Kristal</label>
-              <select
-                value={urinData.Crystals}
-                onChange={(e) => setUrinData({ ...urinData, Crystals: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="Negatif">Negatif</option>
-                <option value="Oksalat">Oksalat</option>
-                <option value="Urat">Urat</option>
-                <option value="Fosfat">Fosfat</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Casts</label>
-              <select
-                value={urinData.Casts}
-                onChange={(e) => setUrinData({ ...urinData, Casts: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="">-</option>
-                <option value="Negatif">Negatif</option>
-                <option value="Hialin">Hialin</option>
-                <option value="Granuler">Granuler</option>
-                <option value="Eritrosit">Eritrosit</option>
-                <option value="Leukosit">Leukosit</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Organisme Terisolasi</label>
-              <input
-                type="text"
-                value={urinData.Organisme_terisolasi}
-                onChange={(e) => setUrinData({ ...urinData, Organisme_terisolasi: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
           </div>
 
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Sensitivitas Antibiotik</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { label: 'Antimicrobial', key: 'Antimicrobial' },
-                { label: 'Trimethoprim', key: 'Trimethoprim' },
-                { label: 'Cefuroxime', key: 'Cefuroxime' },
-                { label: 'Amoxycillin Clavulanic acid', key: 'Amoxycillin_Clavulanic_acid' },
-                { label: 'Cephalexin', key: 'Cephalexin' },
-                { label: 'Nitrofurantoin', key: 'Nitrofurantoin' },
-                { label: 'Ciprofloxacin', key: 'Ciprofloxacin' },
-                { label: 'Doxycycline', key: 'Doxycycline' },
-                { label: 'Gentamicin', key: 'Gentamicin' },
-              ].map((item) => (
-                <div key={item.key}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{item.label}</label>
-                  <select
-                    value={(urinData as any)[item.key]}
-                    onChange={(e) => setUrinData({ ...urinData, [item.key]: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">-</option>
-                    <option value="Sensitif">Sensitif</option>
-                    <option value="Intermediet">Intermediet</option>
-                    <option value="Resisten">Resisten</option>
-                  </select>
-                </div>
-              ))}
-            </div>
-          </div>
-
+          {/* ✅ tombol save hanya aktif kalau isEditing */}
           <div className="flex gap-4 mt-6">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || !isEditing}
               className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400"
             >
               {saving ? 'Menyimpan...' : 'Simpan Hasil'}
@@ -466,26 +340,32 @@ function ResultsPageContent() {
               onClick={() => router.back()}
               className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
             >
-              Batal
+              Kembali
             </button>
           </div>
+
+          {!isEditing && (
+            <p className="mt-3 text-sm text-gray-500">
+              View-only aktif. Klik tombol <b>Edit</b> untuk mengubah data.
+            </p>
+          )}
         </form>
       )}
 
+      {/* ✅ RONSEN */}
       {type === 'ronsen' && (
         <form onSubmit={handleSaveRonsen} className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-6">Hasil Rontgen</h2>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              URL Gambar Rontgen
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">URL Gambar Rontgen</label>
             <input
               type="text"
               value={ronsenData.imgSrc}
               onChange={(e) => setRonsenData({ imgSrc: e.target.value })}
               placeholder="https://example.com/image.jpg"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              disabled={!isEditing || saving}
             />
           </div>
 
@@ -506,7 +386,7 @@ function ResultsPageContent() {
           <div className="flex gap-4">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || !isEditing}
               className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400"
             >
               {saving ? 'Menyimpan...' : 'Simpan Hasil'}
@@ -516,9 +396,15 @@ function ResultsPageContent() {
               onClick={() => router.back()}
               className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
             >
-              Batal
+              Kembali
             </button>
           </div>
+
+          {!isEditing && (
+            <p className="mt-3 text-sm text-gray-500">
+              Klik tombol <b>Edit</b> untuk mengubah data.
+            </p>
+          )}
         </form>
       )}
     </div>

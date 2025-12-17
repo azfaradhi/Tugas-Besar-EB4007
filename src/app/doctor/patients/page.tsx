@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/lib/auth';
 import PatientListClient from '@/components/doctor/PatientListClient';
 
 export interface PatientListItem {
-  id: number;                 // ID_Pasien
+  id: string;                 // ID_Pasien
   name: string;
   lastMeetingDate: string;    // ISO string
   lastComplaint: string | null;
@@ -14,7 +14,7 @@ export interface PatientListItem {
 }
 
 export interface PatientDetail {
-  id: number;
+  id: string;
   name: string;
   birthDate: string | null;
   gender: string | null;
@@ -24,7 +24,7 @@ export interface PatientDetail {
 }
 
 export interface PatientAppointment {
-  id: number;                 // ID_pertemuan
+  id: string;
   date: string;               // ISO
   startTime: string;
   endTime: string | null;
@@ -33,7 +33,7 @@ export interface PatientAppointment {
 }
 
 export interface MedicalRecord {
-  id: number;
+  id: string;
   date: string;
   diagnosis: string | null;
   notes: string | null;
@@ -41,7 +41,7 @@ export interface MedicalRecord {
 
 
 interface RawRow extends RowDataPacket {
-  ID_Pasien: number;
+  ID_Pasien: string;
   Nama: string;
   Tanggal: string;       // datetime from DB
   Waktu_mulai: string;
@@ -67,8 +67,8 @@ async function getPatientsForDoctor(doctorId: string) {
   );
 
   // Group by patient, ambil pertemuan terbaru
-  const map = new Map<number, {
-    id: number;
+  const map = new Map<string, {
+    id: string;
     name: string;
     lastMeetingDate: string;
     lastComplaint: string | null;

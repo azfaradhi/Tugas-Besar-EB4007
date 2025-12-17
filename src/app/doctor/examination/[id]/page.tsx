@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -13,7 +13,7 @@ interface Patient {
   Nama: string;
   Tanggal_lahir: string;
   Umur: number;
-  Jenis_kelamin: string;
+  Jenis_kelamin: string; // schema: 'Laki-laki' | 'Perempuan'
   No_telpon: string;
   Alamat: string;
   Golongan_darah: string;
@@ -49,12 +49,12 @@ interface PrescriptionItem {
   quantity: number;
   dosage: string;
   frequency: string;
-  duration: string;
+  duration: number; // IMPORTANT: schema INT (Durasi_hari)
   instructions: string;
 }
 
 interface MedicalRecord {
-  ID_hasil: number;
+  ID_hasil: string; // IMPORTANT: schema VARCHAR(20)
   diagnosis: string;
   symptoms: string;
   treatment_plan: string;
@@ -63,10 +63,24 @@ interface MedicalRecord {
   created_at: string;
 }
 
+type NextStep = 'Rawat Jalan' | 'Rawat Inap' | 'Laboratorium';
+type LabTestType = '' | 'urin' | 'ronsen';
+
+function prettyGender(g: string | null | undefined) {
+  if (!g) return '-';
+  // schema sudah pakai "Laki-laki" / "Perempuan"
+  if (g === 'Laki-laki' || g === 'Perempuan') return g;
+
+  // fallback kalau data lama masih 'male'/'female' atau 'L'/'P'
+  if (g === 'male' || g === 'L') return 'Laki-laki';
+  if (g === 'female' || g === 'P') return 'Perempuan';
+  return g;
+}
+
 export default function ExaminationPage(_: ExaminationPageProps) {
   const router = useRouter();
   const params = useParams();
-  const appointmentId = params?.id as string | undefined;
+  const appointmentId = (params?.id as string | undefined) ?? (params?.appointmentId as string | undefined);
 
   // loading state
   const [loading, setLoading] = useState(true);
@@ -85,7 +99,9 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   const [diagnosis, setDiagnosis] = useState('');
   const [treatmentPlan, setTreatmentPlan] = useState('');
   const [notes, setNotes] = useState('');
-  const [nextStep, setNextStep] = useState<'Rawat Jalan' | 'Rawat Inap' | 'Laboratorium'>('Rawat Jalan');
+  const [nextStep, setNextStep] = useState<NextStep>('Rawat Jalan');
+
+  const [labTestType, setLabTestType] = useState<LabTestType>('');
 
   // prescription state + modal
   const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([]);
@@ -96,20 +112,20 @@ export default function ExaminationPage(_: ExaminationPageProps) {
     quantity: 1,
     dosage: '',
     frequency: '',
-    duration: '',
-    instructions: ''
-  });
-
-  // Lab referral state
-  const [labReferrals, setLabReferrals] = useState({
-    urinTest: false,
-    ronsenTest: false,
+    duration: 1,
+    instructions: '',
   });
 
   useEffect(() => {
     if (!appointmentId) return;
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId]);
+
+  // kalau bukan Lab, reset pilihan lab
+  useEffect(() => {
+    if (nextStep !== 'Laboratorium') setLabTestType('');
+  }, [nextStep]);
 
   const fetchData = async () => {
     try {
@@ -127,7 +143,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       const patientRes = await fetch(`/api/pasien?id=${appointmentObj.ID_Pasien}`);
       if (!patientRes.ok) throw new Error('Gagal ambil data pasien');
       const patientData = await patientRes.json();
-      setPatient(patientData.pasiens?.[0]);
+      setPatient(patientData.pasiens?.[0] ?? null);
 
       // rekam medis
       const rekamRes = await fetch(`/api/hasil-pemeriksaan?patientId=${appointmentObj.ID_Pasien}`);
@@ -145,8 +161,8 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           code: '',
           name: o.Nama,
           unit: o.Kategori,
-          stock: 0,
-          price: Number(o.Harga_satuan ?? 0)
+          stock: Number(o.Stok ?? 0),
+          price: Number(o.Harga_satuan ?? 0),
         }));
         setMedications(normalized);
       }
@@ -165,17 +181,30 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   };
 
   const handleAddMedication = () => {
-    if (!selectedMedication || !newPrescriptionItem.dosage || !newPrescriptionItem.frequency) {
-      alert('Mohon lengkapi data obat.');
+    if (!selectedMedication) {
+      alert('Pilih obat dulu.');
       return;
     }
-    setPrescriptionItems(prev => [
+    if (!newPrescriptionItem.dosage?.trim() || !newPrescriptionItem.frequency?.trim()) {
+      alert('Mohon lengkapi dosis dan frekuensi.');
+      return;
+    }
+    if (!newPrescriptionItem.duration || newPrescriptionItem.duration < 1) {
+      alert('Durasi minimal 1 hari.');
+      return;
+    }
+    if (!newPrescriptionItem.quantity || newPrescriptionItem.quantity < 1) {
+      alert('Jumlah minimal 1.');
+      return;
+    }
+
+    setPrescriptionItems((prev) => [
       ...prev,
       {
         ...newPrescriptionItem,
         medication_id: selectedMedication.id,
-        medication_name: selectedMedication.name
-      }
+        medication_name: selectedMedication.name,
+      },
     ]);
 
     setShowMedicationModal(false);
@@ -185,61 +214,78 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       quantity: 1,
       dosage: '',
       frequency: '',
-      duration: '',
-      instructions: ''
+      duration: 1,
+      instructions: '',
     });
   };
 
   const handleRemoveMedication = (index: number) => {
-    setPrescriptionItems(prev => prev.filter((_, i) => i !== index));
+    setPrescriptionItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const canSubmit = useMemo(() => {
+    if (!diagnosis.trim()) return false;
+    if (nextStep === 'Laboratorium' && !labTestType) return false;
+    return true;
+  }, [diagnosis, nextStep, labTestType]);
+
   const handleSubmit = async () => {
-    if (!diagnosis) {
+    if (!diagnosis.trim()) {
       alert('Diagnosis harus diisi');
+      return;
+    }
+
+    if (nextStep === 'Laboratorium' && !labTestType) {
+      alert('Kalau langkah selanjutnya Laboratorium, pilih salah satu: Uji Urin atau Ronsen.');
       return;
     }
 
     try {
       setSaving(true);
+      const finalTreatmentPlan =
+        nextStep === 'Laboratorium'
+          ? labTestType           
+          : nextStep;
+
+      const payload = {
+        ID_pertemuan: appointmentId,
+        diagnosis,
+        symptoms,
+        detak_jantung: detakJantung,
+        treatment_plan: finalTreatmentPlan,
+        notes,
+        status: 'completed',
+
+        obat: prescriptionItems.map((item) => ({
+          ID_Obat: item.medication_id,
+          Dosis: item.dosage,
+          Frekuensi: item.frequency,
+          Durasi_hari: Number(item.duration), 
+          Qty: Number(item.quantity),
+        })),
+      };
 
       const res = await fetch('/api/hasil-pemeriksaan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ID_pertemuan: appointmentId,
-          diagnosis,
-          symptoms,
-          detak_jantung: detakJantung,
-          treatment_plan: treatmentPlan,
-          notes,                 // tambahan catatan dokter
-          next_step: nextStep,   // dropdown langkah selanjutnya
-          status: 'completed',
-          obat: prescriptionItems.map(item => ({
-            ID_Obat: item.medication_id,
-            Dosis: item.dosage,
-            Frekuensi: item.frequency,
-            Durasi_hari: item.duration,
-            Qty: item.quantity
-          }))
-        })
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error('Gagal simpan pemeriksaan');
       const result = await res.json();
 
       // update tabel rekam medis di UI (tanpa reload)
-      setMedicalRecords(prev => [
+      setMedicalRecords((prev) => [
         {
-          ID_hasil: Number(result.ID_hasil),
+          ID_hasil: String(result.ID_hasil),
           diagnosis,
           symptoms,
           treatment_plan: treatmentPlan,
           notes,
           next_step: nextStep,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
         },
-        ...prev
+        ...prev,
       ]);
 
       // reset form
@@ -248,11 +294,12 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       setTreatmentPlan('');
       setNotes('');
       setNextStep('Rawat Jalan');
+      setLabTestType('');
       setPrescriptionItems([]);
       setDetakJantung(0);
 
       alert('Pemeriksaan berhasil disimpan');
-      // router.push('/dashboard'); // kalau mau balik dashboard, aktifkan ini
+      // router.push('/dashboard');
     } catch (error) {
       console.error('Error saving examination:', error);
       alert('Gagal menyimpan pemeriksaan');
@@ -289,7 +336,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           <div>
             <p className="text-sm">Usia / Jenis Kelamin</p>
             <p className="font-semibold">
-              {patient.Umur} tahun / {patient.Jenis_kelamin === 'male' ? 'Laki-laki' : 'Perempuan'}
+              {patient.Umur} tahun / {prettyGender(patient.Jenis_kelamin)}
             </p>
           </div>
           <div>
@@ -298,7 +345,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           </div>
           <div>
             <p className="text-sm">Telepon</p>
-            <p className="font-semibold">{patient.No_telpon}</p>
+            <p className="font-semibold">{patient.No_telpon || '-'}</p>
           </div>
           <div>
             <p className="text-sm">Tanggal Kunjungan</p>
@@ -377,13 +424,74 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         <label className="block mb-2 font-semibold">Langkah Selanjutnya</label>
         <select
           value={nextStep}
-          onChange={(e) => setNextStep(e.target.value as any)}
-          className="w-full border rounded p-2 mb-4"
+          onChange={(e) => setNextStep(e.target.value as NextStep)}
+          className="w-full border rounded p-2"
         >
           <option>Rawat Jalan</option>
           <option>Rawat Inap</option>
           <option>Laboratorium</option>
         </select>
+
+        {nextStep === 'Laboratorium' && (
+          <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4">
+            <p className="font-semibold text-indigo-900">Pilih pemeriksaan laboratorium</p>
+            <p className="text-sm text-indigo-800 mt-1">
+              Ini akan dibuat sebagai request untuk staff laboratorium.
+            </p>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label
+                className={[
+                  'flex cursor-pointer items-start gap-3 rounded-lg border bg-white p-3',
+                  labTestType === 'urin' ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200',
+                ].join(' ')}
+              >
+                <input
+                  type="radio"
+                  name="labTestType"
+                  value="urin"
+                  checked={labTestType === 'urin'}
+                  onChange={() => setLabTestType('urin')}
+                  className="mt-1"
+                />
+                <div>
+                  <p className="font-semibold text-gray-900">Uji Urin</p>
+                  <p className="text-xs text-gray-600">
+                    pH, Protein, Glukosa, Ketone (sesuai form staff lab)
+                  </p>
+                </div>
+              </label>
+
+              <label
+                className={[
+                  'flex cursor-pointer items-start gap-3 rounded-lg border bg-white p-3',
+                  labTestType === 'ronsen' ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200',
+                ].join(' ')}
+              >
+                <input
+                  type="radio"
+                  name="labTestType"
+                  value="ronsen"
+                  checked={labTestType === 'ronsen'}
+                  onChange={() => setLabTestType('ronsen')}
+                  className="mt-1"
+                />
+                <div>
+                  <p className="font-semibold text-gray-900">Ronsen</p>
+                  <p className="text-xs text-gray-600">
+                    Upload gambar + keterangan hasil ronsen
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {!labTestType && (
+              <p className="mt-2 text-sm text-red-600">
+                * Wajib pilih salah satu test kalau langkah selanjutnya Laboratorium.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Prescription */}
@@ -419,13 +527,10 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     <td className="px-4 py-2 text-sm">{item.medication_name}</td>
                     <td className="px-4 py-2 text-sm">{item.dosage}</td>
                     <td className="px-4 py-2 text-sm">{item.frequency}</td>
-                    <td className="px-4 py-2 text-sm">{item.duration}</td>
+                    <td className="px-4 py-2 text-sm">{item.duration} hari</td>
                     <td className="px-4 py-2 text-sm">{item.quantity}</td>
                     <td className="px-4 py-2 text-sm">
-                      <button
-                        onClick={() => handleRemoveMedication(index)}
-                        className="text-red-600 hover:text-red-800"
-                      >
+                      <button onClick={() => handleRemoveMedication(index)} className="text-red-600 hover:text-red-800">
                         Hapus
                       </button>
                     </td>
@@ -439,22 +544,19 @@ export default function ExaminationPage(_: ExaminationPageProps) {
 
       {/* Actions */}
       <div className="flex justify-end space-x-4">
-        <Link
-          href="/dashboard"
-          className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
+        <Link href="/dashboard" className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50">
           Batal
         </Link>
         <button
           onClick={handleSubmit}
-          disabled={saving || !diagnosis}
+          disabled={saving || !canSubmit}
           className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
           {saving ? 'Menyimpan...' : 'Simpan Pemeriksaan'}
         </button>
       </div>
 
-      {/* Medication Modal (tetap ADA) */}
+      {/* Medication Modal */}
       {showMedicationModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -466,13 +568,13 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                 <select
                   value={selectedMedication?.id || ''}
                   onChange={(e) => {
-                    const med = medications.find(m => m.id === e.target.value);
+                    const med = medications.find((m) => m.id === e.target.value);
                     setSelectedMedication(med || null);
                   }}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 >
                   <option value="">-- Pilih Obat --</option>
-                  {medications.map(med => (
+                  {medications.map((med) => (
                     <option key={med.id} value={med.id}>
                       {med.name} {med.unit ? `(${med.unit})` : ''} {med.price ? `- Rp${med.price}` : ''}
                     </option>
@@ -488,7 +590,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     placeholder="Contoh: 500mg"
                     value={newPrescriptionItem.dosage}
                     onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, dosage: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
                 <div>
@@ -498,21 +600,29 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     placeholder="Contoh: 3x sehari"
                     value={newPrescriptionItem.frequency}
                     onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, frequency: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Durasi</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: 7 hari"
-                    value={newPrescriptionItem.duration}
-                    onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, duration: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
+                  <label className="text-sm font-medium mb-1 flex">Durasi</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={newPrescriptionItem.duration}
+                      onChange={(e) =>
+                        setNewPrescriptionItem({
+                          ...newPrescriptionItem,
+                          duration: Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 1,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-600">Hari</span>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Jumlah</label>
@@ -520,8 +630,13 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     type="number"
                     min={1}
                     value={newPrescriptionItem.quantity}
-                    onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, quantity: parseInt(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    onChange={(e) =>
+                      setNewPrescriptionItem({
+                        ...newPrescriptionItem,
+                        quantity: Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 1,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
               </div>
@@ -533,7 +648,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                   placeholder="Contoh: Diminum setelah makan"
                   value={newPrescriptionItem.instructions}
                   onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, instructions: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
             </div>
@@ -548,18 +663,15 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     quantity: 1,
                     dosage: '',
                     frequency: '',
-                    duration: '',
-                    instructions: ''
+                    duration: 1,
+                    instructions: '',
                   });
                 }}
                 className="px-4 py-2 border rounded-lg"
               >
                 Batal
               </button>
-              <button
-                onClick={handleAddMedication}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-              >
+              <button onClick={handleAddMedication} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                 Tambah
               </button>
             </div>

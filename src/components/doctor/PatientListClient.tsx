@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 interface PatientListItem {
-  id: number;
+  id: string;
   name: string;
   lastMeetingDate: string;
   lastComplaint: string | null;
