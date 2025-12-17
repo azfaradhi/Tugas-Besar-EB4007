@@ -136,7 +136,7 @@ function addToBuffer(sessionId, data) {
   }
 }
 
-// Save aggregated data to database
+// Save aggregated data to database every 5 seconds
 async function saveAggregatedData(sessionId, dataPoints) {
   if (dataPoints.length === 0) return;
 
@@ -150,7 +150,7 @@ async function saveAggregatedData(sessionId, dataPoints) {
     const session = activeSessions.get(sessionId);
     if (!session) return;
 
-    // Save heart rate
+    // Save heart rate (averaged from 5 second window)
     await db.query(
       `INSERT INTO wearable_data 
        (session_id, patient_id, measurement_type, value, unit, status, measured_at) 
@@ -158,7 +158,7 @@ async function saveAggregatedData(sessionId, dataPoints) {
       [sessionId, session.patientId, avgHr.toFixed(2), getStatus('heart_rate', avgHr)]
     );
 
-    // Save SpO2
+    // Save SpO2 (averaged from 5 second window)
     await db.query(
       `INSERT INTO wearable_data 
        (session_id, patient_id, measurement_type, value, unit, status, measured_at) 

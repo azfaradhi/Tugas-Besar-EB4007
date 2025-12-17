@@ -49,10 +49,21 @@ void setup() {
     while (1);
   }
   
-  // Configure sensor with optimal settings
-  particleSensor.setup();
-  particleSensor.setPulseAmplitudeRed(0x0A);
-  particleSensor.setPulseAmplitudeGreen(0);
+  // Configure sensor with optimal settings for Arduino Uno
+  // Parameters: ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange
+  byte ledBrightness = 0x3F;  // Medium brightness (0x00-0xFF)
+  byte sampleAverage = 4;     // Average 4 samples
+  byte ledMode = 2;           // Red and IR LEDs
+  int sampleRate = 100;       // 100 samples per second
+  int pulseWidth = 411;       // 411us pulse width (higher resolution)
+  int adcRange = 4096;        // ADC range 4096 (nA per LSB)
+  
+  particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange);
+  
+  // Additional configuration for better readings
+  particleSensor.setPulseAmplitudeRed(0x3F);    // Set Red LED current
+  particleSensor.setPulseAmplitudeIR(0x3F);     // Set IR LED current
+  particleSensor.setPulseAmplitudeGreen(0);     // Turn off Green LED
   
   Serial.println("{\"status\":\"ready\"}");
 }
@@ -93,32 +104,34 @@ void loop() {
     }
   }
 
-  // Calculate SpO2 (simplified)
+  // Calculate SpO2 (simplified empirical formula)
+  // Note: This is a basic approximation. For clinical use, proper calibration is required.
   if (redValue > 0 && irValue > 0) {
     double ratio = (double)redValue / (double)irValue;
-    spo2 = 110.0 - (25.0 * ratio);
+    
+    // Empirical formula based on MAX30102 datasheet approximation
+    // R = (AC_red / DC_red) / (AC_ir / DC_ir)
+    // SpO2 = -45.060 * R^2 + 30.354 * R + 94.845
+    // Simplified version for demo:
+    spo2 = 104.0 - (17.0 * ratio);
 
-    // Clamp to realistic range
+    // Clamp to realistic physiological range
     if (spo2 > 100.0) spo2 = 100.0;
     if (spo2 < 70.0) spo2 = 70.0;
   }
 
-  // Send data every SEND_INTERVAL
-  if (millis() - lastSendTime > SEND_INTERVAL && beatAvg > 0) {
+  // Send data every SEND_INTERVAL - ALWAYS send both heart_rate AND spo2
+  if (millis() - lastSendTime > SEND_INTERVAL) {
+    // Ensure valid JSON output with both fields
+    int outputHr = (beatAvg > 0) ? beatAvg : 0;
+    int outputSpo2 = (spo2 >= 70.0) ? (int)spo2 : 0;
+    
     Serial.print("{\"heart_rate\":");
-    Serial.print(beatAvg);
+    Serial.print(outputHr);
     Serial.print(",\"spo2\":");
-    Serial.print((int)spo2);
+    Serial.print(outputSpo2);
     Serial.println("}");
-
+ 
     lastSendTime = millis();
   }
-}
-
-
-    lastSendTime = millis();
-  }
-
-  // Small delay to prevent flooding serial
-  delay(100);
 }
