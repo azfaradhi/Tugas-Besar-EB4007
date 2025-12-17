@@ -95,13 +95,34 @@ export default function HealthMonitorPage() {
     }
   };
 
-  const handleConnect = () => {
-    if (!activeSession) {
-      setError('Tidak ada sesi monitoring aktif. Tunggu dokter memulai pemeriksaan.');
-      return;
-    }
-
+  const handleStartMonitoring = async () => {
     try {
+      // If no active session, create one based on active appointment
+      if (!activeSession) {
+        setError('');
+        const createRes = await fetch('/api/monitoring/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: user.profileId,
+            notes: ''
+          })
+        });
+
+        if (!createRes.ok) {
+          const errorData = await createRes.json();
+          setError(errorData.error || 'Gagal memulai monitoring. Pastikan Anda memiliki appointment aktif dengan dokter.');
+          return;
+        }
+
+        const sessionData = await createRes.json();
+        setActiveSession(sessionData.session);
+        
+        // Small delay to ensure session is ready
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      // Connect to WebSocket
       const ws = new WebSocket('ws://localhost:8080');
       wsRef.current = ws;
 
@@ -111,7 +132,7 @@ export default function HealthMonitorPage() {
           data: {
             userId: user.profileId,
             role: 'patient',
-            sessionId: activeSession.session_id
+            sessionId: activeSession?.session_id || sessionData.session.session_id
           }
         }));
       };
@@ -163,6 +184,47 @@ export default function HealthMonitorPage() {
     }
     setIsConnected(false);
     setRealtimeData(null);
+  };
+
+  const handleEndMonitoring = async () => {
+    if (!activeSession) return;
+
+    if (!confirm('Akhiri sesi monitoring? Hasil akan tersimpan di riwayat pemeriksaan.')) {
+      return;
+    }
+
+    try {
+      // Send end session signal via WebSocket
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'end_session' }));
+        wsRef.current.close();
+      }
+
+      // Update session status via API
+      const res = await fetch('/api/monitoring/session', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: activeSession.session_id,
+          notes: ''
+        })
+      });
+
+      if (res.ok) {
+        setActiveSession(null);
+        setIsConnected(false);
+        setRealtimeData(null);
+        setError('');
+        
+        // Refresh data
+        await fetchInitialData();
+      } else {
+        throw new Error('Gagal mengakhiri sesi');
+      }
+    } catch (error) {
+      console.error('Error ending session:', error);
+      setError('Gagal mengakhiri sesi monitoring');
+    }
   };
 
   const getStatusColor = (status?: string) => {
