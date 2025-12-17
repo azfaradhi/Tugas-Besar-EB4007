@@ -115,7 +115,6 @@ export default function StaffPharmacyDashboard({ user }: StaffPharmacyDashboardP
         body: JSON.stringify({
           ID_billing_farmasi: selectedPrescription.billing_farmasi.ID_billing_farmasi,
           isLunas: 1,
-          Lunas_date: new Date().toISOString(),
           Jenis_pembayaran: paymentMethod
         }),
       });

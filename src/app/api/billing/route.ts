@@ -160,8 +160,10 @@ export async function PUT(request: NextRequest) {
       values.push(isLunas ? 1 : 0);
 
       if (isLunas) {
+        const now = new Date();
+        const lunas_date = now.toISOString().slice(0, 19).replace('T', ' ');
         updates.push('Lunas_date = ?');
-        values.push(new Date());
+        values.push(lunas_date);
       }
     }
 

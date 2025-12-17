@@ -10,6 +10,7 @@ interface BillingFarmasiRow {
   Total_harga: number;
   Lunas_date: string | null;
   Jenis_pembayaran: string | null;
+  status_proses: 'pending' | 'processed' | 'completed';
   isLunas: number;
   nama_pasien: string;
 }
@@ -35,12 +36,13 @@ export async function GET(req: NextRequest) {
         bf.Total_harga,
         bf.Lunas_date,
         bf.Jenis_pembayaran,
+        bf.status_proses,
         bf.isLunas,
         p.Nama AS nama_pasien
       FROM Billing_Farmasi bf
       JOIN Pasien p ON p.ID_pasien = bf.ID_pasien
       WHERE bf.ID_pasien = ?
-      ORDER BY bf.Lunas_date DESC IS NULL, bf.Lunas_date DESC
+      ORDER BY bf.status_proses ASC, bf.Lunas_date DESC
       `,
       [patientId]
     );
@@ -99,7 +101,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { ID_billing_farmasi, ...updates } = body;
+    const { ID_billing_farmasi, isLunas, Jenis_pembayaran, status_proses, ...otherUpdates } = body;
 
     if (!ID_billing_farmasi) {
       return NextResponse.json(
@@ -108,11 +110,59 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const setParts = Object.keys(updates).map(key => `${key} = ?`);
-    const values = Object.values(updates);
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    // Handle other updates
+    for (const [key, value] of Object.entries(otherUpdates)) {
+      updates.push(`${key} = ?`);
+      values.push(value);
+    }
+
+    // Handle Jenis_pembayaran
+    if (Jenis_pembayaran !== undefined) {
+      const validPaymentMethods = ['Cash', 'Debit', 'Credit'];
+      if (validPaymentMethods.includes(Jenis_pembayaran)) {
+        updates.push('Jenis_pembayaran = ?');
+        values.push(Jenis_pembayaran);
+      }
+    }
+
+    // Handle status_proses
+    if (status_proses !== undefined) {
+      const validStatuses = ['pending', 'processed', 'completed'];
+      if (validStatuses.includes(status_proses)) {
+        updates.push('status_proses = ?');
+        values.push(status_proses);
+      }
+    }
+
+    // Handle isLunas and Lunas_date
+    if (isLunas !== undefined) {
+      updates.push('isLunas = ?');
+      values.push(isLunas ? 1 : 0);
+
+      if (isLunas) {
+        const now = new Date();
+        const lunas_date = now.toISOString().slice(0, 19).replace('T', ' ');
+        updates.push('Lunas_date = ?');
+        values.push(lunas_date);
+
+        // Auto-set status_proses to 'completed' when paid
+        updates.push('status_proses = ?');
+        values.push('completed');
+      }
+    }
+
+    if (updates.length === 0) {
+      return NextResponse.json(
+        { error: 'No valid fields to update' },
+        { status: 400 }
+      );
+    }
 
     await query(
-      `UPDATE Billing_Farmasi SET ${setParts.join(', ')} WHERE ID_billing_farmasi = ?`,
+      `UPDATE Billing_Farmasi SET ${updates.join(', ')} WHERE ID_billing_farmasi = ?`,
       [...values, ID_billing_farmasi]
     );
 
