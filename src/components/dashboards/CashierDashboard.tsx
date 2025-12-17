@@ -26,6 +26,7 @@ export default function CashierDashboard({ user }: CashierDashboardProps) {
   const [filterStatus, setFilterStatus] = useState<'all' | 'lunas' | 'belum'>('all');
   const [selectedBilling, setSelectedBilling] = useState<Billing | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Debit' | 'Credit'>('Cash');
 
   useEffect(() => {
     fetchData();
@@ -55,6 +56,7 @@ export default function CashierDashboard({ user }: CashierDashboardProps) {
         body: JSON.stringify({
           ID_billing: selectedBilling.ID_billing,
           isLunas: true,
+          Jenis_pembayaran: paymentMethod
         }),
       });
 
@@ -282,9 +284,19 @@ export default function CashierDashboard({ user }: CashierDashboardProps) {
                   Rp {selectedBilling.Total_harga?.toLocaleString('id-ID') || 0}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Metode Pembayaran:</span>
-                <span className="font-medium text-gray-900">{selectedBilling.Jenis_pembayaran || '-'}</span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Metode Pembayaran
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Debit">Debit</option>
+                  <option value="Credit">Credit</option>
+                </select>
               </div>
             </div>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">

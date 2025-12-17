@@ -12,7 +12,7 @@ interface HasilPemeriksaan {
   Spesialis: string;
   diagnosis: string;
   symptoms: string;
-  vital_signs: string;
+  detak_jantung: number;
   treatment_plan: string;
   notes: string;
   obat: Array<{
@@ -202,23 +202,12 @@ export default function PatientMedicalRecordsPage() {
               </div>
             )}
 
-            {selectedRecord.vital_signs && (
+            {selectedRecord.detak_jantung && (
               <div className="mb-6">
-                <h4 className="font-semibold text-gray-900 mb-3">Tanda Vital</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {(() => {
-                    try {
-                      const vitals = JSON.parse(selectedRecord.vital_signs);
-                      return Object.entries(vitals).map(([key, value]: [string, any]) => (
-                        <div key={key} className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-xs text-gray-600 mb-1">{key.replace(/_/g, ' ').toUpperCase()}</p>
-                          <p className="font-semibold text-gray-900">{value}</p>
-                        </div>
-                      ));
-                    } catch {
-                      return <p className="text-gray-500 col-span-4">Data tidak tersedia</p>;
-                    }
-                  })()}
+                <h4 className="font-semibold text-gray-900 mb-3">Detak Jantung</h4>
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-2xl font-bold text-blue-600">{selectedRecord.detak_jantung} bpm</p>
+                  <p className="text-sm text-gray-600 mt-1">Beats per minute</p>
                 </div>
               </div>
             )}
@@ -278,12 +267,12 @@ export default function PatientMedicalRecordsPage() {
                           </div>
                         )}
                       </div>
-                      {obat.catatan && (
+                      {/* {obat.catatan && (
                         <div className="mt-3 p-2 bg-white rounded border border-blue-300">
                           <p className="text-xs text-gray-600 mb-1">Aturan Pakai</p>
                           <p className="text-sm text-gray-900">{obat.catatan}</p>
                         </div>
-                      )}
+                      )} */}
                     </div>
                   ))}
                 </div>

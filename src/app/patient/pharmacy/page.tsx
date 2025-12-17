@@ -347,10 +347,10 @@ export default function PatientPharmacyPage() {
                       </div>
                       <p className="text-gray-900 font-medium mb-1">
                         Metode Pembayaran:{' '}
-                        <span className="font-bold">{billing.Jenis_pembayaran}</span>
+                        <span className="font-bold">{billing.Jenis_pembayaran || 'Belum ditentukan'}</span>
                       </p>
                       <p className="text-sm text-gray-600">
-                        Silakan lakukan pembayaran di kasir dengan membawa nomor tagihan ini.
+                        Silakan lakukan pembayaran di farmasi dengan membawa nomor tagihan ini.
                       </p>
                     </div>
                   </div>
@@ -381,7 +381,7 @@ export default function PatientPharmacyPage() {
                       </div>
                       <p className="text-gray-900 font-medium mb-1">
                         Metode Pembayaran:{' '}
-                        <span className="font-bold">{billing.Jenis_pembayaran}</span>
+                        <span className="font-bold">{billing.Jenis_pembayaran || '-'}</span>
                       </p>
                       {billing.Lunas_date && (
                         <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">

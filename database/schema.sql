@@ -1,12 +1,12 @@
 -- ================================================================================
 -- DATABASE SCHEMA - SISTEM INFORMASI KESEHATAN
 -- EB4007 - Tugas Besar
--- Version: Consolidated with proper Foreign Keys
 -- ================================================================================
+
 SET time_zone = '+07:00';
 
 -- ================================================================================
--- DROP TABLES (in reverse dependency order)
+-- DROP TABLES (reverse dependency order)
 -- ================================================================================
 DROP TABLE IF EXISTS wearable_data;
 DROP TABLE IF EXISTS UrinTest;
@@ -30,7 +30,7 @@ DROP TABLE IF EXISTS Departemen;
 DROP TABLE IF EXISTS users;
 
 -- ================================================================================
--- TABLE: users (Authentication & Authorization)
+-- TABLE: users
 -- ================================================================================
 CREATE TABLE users (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -112,7 +112,7 @@ CREATE TABLE Karyawan (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Employee base table';
 
 -- ================================================================================
--- TABLE: Dokter (inherits from Karyawan)
+-- TABLE: Dokter
 -- ================================================================================
 CREATE TABLE Dokter (
     ID_karyawan VARCHAR(20) PRIMARY KEY,
@@ -129,15 +129,15 @@ CREATE TABLE Dokter (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Doctor information';
 
 -- ================================================================================
--- TABLE: Operasional (inherits from Karyawan)
+-- TABLE: Operasional
 -- ================================================================================
 CREATE TABLE Operasional (
     ID_karyawan VARCHAR(20) PRIMARY KEY,
     FOREIGN KEY (ID_karyawan) REFERENCES Karyawan(ID_karyawan) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Operational staff';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
--- TABLE: Resepsionis (inherits from Karyawan)
+-- TABLE: Resepsionis
 -- ================================================================================
 CREATE TABLE Resepsionis (
     ID_karyawan VARCHAR(20) PRIMARY KEY,
@@ -145,7 +145,7 @@ CREATE TABLE Resepsionis (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Receptionist staff';
 
 -- ================================================================================
--- TABLE: Perawat (inherits from Karyawan)
+-- TABLE: Perawat
 -- ================================================================================
 CREATE TABLE Perawat (
     ID_karyawan VARCHAR(20) PRIMARY KEY,
@@ -206,26 +206,24 @@ CREATE TABLE Obat (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Medicine inventory';
 
 -- ================================================================================
--- TABLE: Hasil_Pemeriksaan
+-- TABLE: Hasil_Pemeriksaan (FINAL)
 -- ================================================================================
 CREATE TABLE Hasil_Pemeriksaan (
     ID_hasil VARCHAR(20) PRIMARY KEY,
     ID_pertemuan VARCHAR(20) NOT NULL,
     diagnosis TEXT,
     symptoms TEXT,
-    vital_signs TEXT,
+    detak_jantung INT,
     treatment_plan TEXT,
     notes TEXT,
-    status ENUM('draft', 'completed') DEFAULT 'completed',
+    status ENUM('draft','completed') DEFAULT 'completed',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (ID_pertemuan) REFERENCES Pertemuan(ID_pertemuan) ON DELETE CASCADE,
-    INDEX idx_pertemuan (ID_pertemuan),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Examination results';
+    FOREIGN KEY (ID_pertemuan) REFERENCES Pertemuan(ID_pertemuan) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
--- TABLE: Hasil_Obat (Many-to-Many: Hasil_Pemeriksaan <-> Obat)
+-- TABLE: Hasil_Obat
 -- ================================================================================
 CREATE TABLE Hasil_Obat (
     ID_hasil VARCHAR(20) NOT NULL,
@@ -236,13 +234,11 @@ CREATE TABLE Hasil_Obat (
     Qty INT,
     PRIMARY KEY (ID_hasil, ID_Obat),
     FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE,
-    FOREIGN KEY (ID_Obat) REFERENCES Obat(ID_obat) ON DELETE CASCADE,
-    INDEX idx_hasil (ID_hasil),
-    INDEX idx_obat (ID_Obat)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Prescription details';
+    FOREIGN KEY (ID_Obat) REFERENCES Obat(ID_obat) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
--- TABLE: Ronsen (X-Ray results)
+-- TABLE: Ronsen
 -- ================================================================================
 CREATE TABLE Ronsen (
     ID_ronsen VARCHAR(20) PRIMARY KEY,
@@ -250,9 +246,8 @@ CREATE TABLE Ronsen (
     imgSrc VARCHAR(255),
     keterangan TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE,
-    INDEX idx_hasil (ID_hasil)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='X-ray examination results';
+    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
 -- TABLE: UrinTest
@@ -260,34 +255,13 @@ CREATE TABLE Ronsen (
 CREATE TABLE UrinTest (
     ID_uji VARCHAR(20) PRIMARY KEY,
     ID_hasil VARCHAR(20) NOT NULL,
-    Warna ENUM('Kuning Muda', 'Kuning', 'Kuning Tua', 'Merah', 'Coklat', 'Lainnya'),
     pH FLOAT,
-    Protein ENUM('Negatif', 'Trace', '+1', '+2', '+3', '+4'),
-    Glukosa ENUM('Negatif', 'Trace', '+1', '+2', '+3', '+4'),
-    Ketone ENUM('Negatif', 'Trace', '+1', '+2', '+3'),
-    Bilirubin ENUM('Negatif', '+1', '+2', '+3'),
-    Urobilin ENUM('Negatif', 'Normal', '+1', '+2', '+3'),
-    Hemoglobin ENUM('Negatif', 'Trace', '+1', '+2', '+3'),
-    Sel_darah_putih ENUM('0-5', '5-10', '10-20', '>20'),
-    Sel_darah_merah ENUM('0-3', '3-5', '5-10', '>10'),
-    Bakteri ENUM('Negatif', '+1', '+2', '+3'),
-    Sel_epitheal ENUM('Sedikit', 'Sedang', 'Banyak'),
-    Crystals ENUM('Negatif', 'Oksalat', 'Urat', 'Fosfat', 'Lainnya'),
-    Casts ENUM('Negatif', 'Hialin', 'Granuler', 'Eritrosit', 'Leukosit'),
-    Organisme_terisolasi VARCHAR(100),
-    Antimicrobial ENUM('Sensitif', 'Intermediet', 'Resisten'),
-    Trimethoprim ENUM('Sensitif', 'Intermediet', 'Resisten'),
-    Cefuroxime ENUM('Sensitif', 'Intermediet', 'Resisten'),
-    Amoxycillin_Clavulanic_acid ENUM('Sensitif', 'Intermediet', 'Resisten'),
-    Cephalexin ENUM('Sensitif', 'Intermediet', 'Resisten'),
-    Nitrofurantoin ENUM('Sensitif', 'Intermediet', 'Resisten'),
-    Ciprofloxacin ENUM('Sensitif', 'Intermediet', 'Resisten'),
-    Doxycycline ENUM('Sensitif', 'Intermediet', 'Resisten'),
-    Gentamicin ENUM('Sensitif', 'Intermediet', 'Resisten'),
+    Protein ENUM('Negatif','Trace','+1','+2','+3','+4'),
+    Glukosa ENUM('Negatif','Trace','+1','+2','+3','+4'),
+    Ketone ENUM('Negatif','Trace','+1','+2','+3'),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE,
-    INDEX idx_hasil (ID_hasil)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Urine test results';
+    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
 -- TABLE: Billing
@@ -296,18 +270,15 @@ CREATE TABLE Billing (
     ID_billing VARCHAR(20) PRIMARY KEY,
     ID_pasien VARCHAR(20) NOT NULL,
     ID_pertemuan VARCHAR(20),
-    Total_harga DECIMAL(15,2) NOT NULL DEFAULT 0,
-    Lunas_date DATE,
-    Jenis_pembayaran ENUM('Credit', 'Debit', 'Cash'),
+    Total_harga DECIMAL(15,2) DEFAULT 0,
+    Jenis_pembayaran ENUM('Cash', 'Debit', 'Credit'),
     isLunas BOOLEAN DEFAULT FALSE,
+    Lunas_date DATETIME,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (ID_pasien) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE,
-    FOREIGN KEY (ID_pertemuan) REFERENCES Pertemuan(ID_pertemuan) ON DELETE SET NULL,
-    INDEX idx_pasien (ID_pasien),
-    INDEX idx_pertemuan (ID_pertemuan),
-    INDEX idx_isLunas (isLunas)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Medical service billing';
+    FOREIGN KEY (ID_pasien) REFERENCES Pasien(ID_pasien),
+    INDEX idx_isLunas (isLunas),
+    INDEX idx_lunas_date (Lunas_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
 -- TABLE: Billing_Farmasi
@@ -316,37 +287,31 @@ CREATE TABLE Billing_Farmasi (
     ID_billing_farmasi VARCHAR(20) PRIMARY KEY,
     ID_hasil VARCHAR(20) NOT NULL,
     ID_pasien VARCHAR(20) NOT NULL,
-    Total_harga DECIMAL(15,2) NOT NULL,
-    Lunas_date DATE,
-    Jenis_pembayaran ENUM('Credit', 'Debit', 'Cash'),
+    Total_harga DECIMAL(15,2),
+    Jenis_pembayaran ENUM('Cash', 'Debit', 'Credit'),
+    status_proses ENUM('pending', 'processed', 'completed') DEFAULT 'pending',
     isLunas BOOLEAN DEFAULT FALSE,
+    Lunas_date DATETIME,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE CASCADE,
-    FOREIGN KEY (ID_pasien) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE,
-    INDEX idx_hasil (ID_hasil),
-    INDEX idx_pasien (ID_pasien),
-    INDEX idx_isLunas (isLunas)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Pharmacy billing';
+    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil),
+    FOREIGN KEY (ID_pasien) REFERENCES Pasien(ID_pasien),
+    INDEX idx_isLunas (isLunas),
+    INDEX idx_lunas_date (Lunas_date),
+    INDEX idx_status_proses (status_proses)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
--- TABLE: wearable_data (IoT Sensor Data - MAX30102)
+-- TABLE: wearable_data
 -- ================================================================================
 CREATE TABLE wearable_data (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     patient_id VARCHAR(20) NOT NULL,
-    measurement_type ENUM('heart_rate', 'spo2') NOT NULL,
-    value DECIMAL(10,2) NOT NULL,
+    measurement_type ENUM('heart_rate','spo2'),
+    value DECIMAL(10,2),
     unit VARCHAR(10),
-    measured_at DATETIME NOT NULL,
-    status ENUM('normal', 'warning', 'critical') DEFAULT 'normal',
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE,
-    INDEX idx_patient_time (patient_id, measured_at DESC),
-    INDEX idx_measurement_type (measurement_type),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MAX30102 sensor measurement data (temporary use during visits)';
+    measured_at DATETIME,
+    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
 -- END OF SCHEMA

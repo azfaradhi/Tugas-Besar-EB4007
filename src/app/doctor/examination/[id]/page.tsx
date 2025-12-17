@@ -63,16 +63,6 @@ interface MedicalRecord {
   created_at: string;
 }
 
-interface VitalSigns {
-  blood_pressure: string;
-  heart_rate: string;
-  temperature: string;
-  respiratory_rate: string;
-  oxygen_saturation: string;
-  weight: string;
-  height: string;
-}
-
 export default function ExaminationPage(_: ExaminationPageProps) {
   const router = useRouter();
   const params = useParams();
@@ -90,15 +80,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   const [wearableData, setWearableData] = useState<any[]>([]);
 
   // form state
-  const [vitalSigns, setVitalSigns] = useState<VitalSigns>({
-    blood_pressure: '',
-    heart_rate: '',
-    temperature: '',
-    respiratory_rate: '',
-    oxygen_saturation: '',
-    weight: '',
-    height: ''
-  });
+  const [detakJantung, setDetakJantung] = useState<number>(0);
   const [symptoms, setSymptoms] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [treatmentPlan, setTreatmentPlan] = useState('');
@@ -228,7 +210,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           ID_pertemuan: appointmentId,
           diagnosis,
           symptoms,
-          vital_signs: vitalSigns,
+          detak_jantung: detakJantung,
           treatment_plan: treatmentPlan,
           notes,                 // tambahan catatan dokter
           next_step: nextStep,   // dropdown langkah selanjutnya
@@ -267,15 +249,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       setNotes('');
       setNextStep('Rawat Jalan');
       setPrescriptionItems([]);
-      setVitalSigns({
-        blood_pressure: '',
-        heart_rate: '',
-        temperature: '',
-        respiratory_rate: '',
-        oxygen_saturation: '',
-        weight: '',
-        height: ''
-      });
+      setDetakJantung(0);
 
       alert('Pemeriksaan berhasil disimpan');
       // router.push('/dashboard'); // kalau mau balik dashboard, aktifkan ini
@@ -356,6 +330,16 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       {/* Examination */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h3 className="text-xl font-semibold mb-4">Detail Pemeriksaan</h3>
+
+        <label className="block mb-2 font-semibold">Detak Jantung (bpm)</label>
+        <input
+          type="number"
+          value={detakJantung}
+          onChange={(e) => setDetakJantung(parseInt(e.target.value) || 0)}
+          className="w-full border rounded p-2 mb-4"
+          placeholder="Contoh: 72"
+          min="0"
+        />
 
         <label className="block mb-2 font-semibold">Gejala</label>
         <textarea

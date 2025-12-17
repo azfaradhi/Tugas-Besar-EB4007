@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       ID_pertemuan,
       diagnosis,
       symptoms,
-      vital_signs,
+      detak_jantung,
       treatment_plan,
       notes,
       status,
@@ -115,8 +115,6 @@ export async function POST(request: NextRequest) {
       ronsen,
       urin_test
     } = body;
-
-    const vital_signs_str = JSON.stringify(vital_signs);
 
     if (!ID_pertemuan) {
       return NextResponse.json(
@@ -133,9 +131,9 @@ export async function POST(request: NextRequest) {
 
     await query(
       `INSERT INTO Hasil_Pemeriksaan
-       (ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs, treatment_plan, notes, status)
+       (ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, treatment_plan, notes, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs_str, treatment_plan, notes, status || 'completed']
+      [ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, treatment_plan, notes, status || 'completed']
     );
 
     // Update Pertemuan: set status to 'completed' and Waktu_selesai to current time
