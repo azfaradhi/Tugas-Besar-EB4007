@@ -1,18 +1,18 @@
 /*
- * MAX30102 Heart Rate & SpO2 Sensor Monitor
+ * MAX30102 Heart Rate & SpO2 Sensor Monitor for Hospital IoT System
  *
  * Hardware Setup:
- * - MAX30102 VIN  -> Arduino 3.3V
+ * - MAX30102 VIN  -> Arduino 3.3V or 5V
  * - MAX30102 GND  -> Arduino GND
- * - MAX30102 SDA  -> Arduino A4
- * - MAX30102 SCL  -> Arduino A5
+ * - MAX30102 SDA  -> Arduino A4 (SDA)
+ * - MAX30102 SCL  -> Arduino A5 (SCL)
  *
  * Required Libraries:
  * - SparkFun MAX3010x Pulse and Proximity Sensor Library
- *   (Install via Arduino Library Manager: "MAX3010x" by SparkFun)
+ *   Install via Arduino Library Manager: Search "MAX3010x" by SparkFun
  *
- * Output Format: JSON via Serial (9600 baud)
- * Example: {"heart_rate": 75, "spo2": 98}
+ * Serial Output: JSON format at 9600 baud
+ * Format: {"heart_rate": 72, "spo2": 98}
  */
 
 #include <Wire.h>
@@ -21,78 +21,70 @@
 
 MAX30105 particleSensor;
 
-// Heart rate calculation variables
-const byte RATE_SIZE = 4; // Number of readings for averaging
+// Heart rate calculation
+const byte RATE_SIZE = 4;
 byte rates[RATE_SIZE];
 byte rateSpot = 0;
 long lastBeat = 0;
 float beatsPerMinute;
 int beatAvg;
 
-// SpO2 calculation variables
+// SpO2 calculation
 long irValue = 0;
 long redValue = 0;
-int spo2Value = 0;
+double spo2 = 0;
 
-// Timing variables
+// Timing
 unsigned long lastSendTime = 0;
-const unsigned long SEND_INTERVAL = 2000; // Send data every 2 seconds
+const unsigned long SEND_INTERVAL = 1000; // Send every 1 second
 
 void setup() {
   Serial.begin(9600);
-
-  // Wait a moment for serial to initialize
+  
   delay(1000);
 
-  // Initialize sensor
+  // Initialize MAX30102
   if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) {
-    Serial.println("{\"error\": \"MAX30102 sensor not found\"}");
-    while (1); // Halt execution if sensor not found
+    Serial.println("{\"error\":\"MAX30102 not found\"}");
+    while (1);
   }
-
+  
   // Configure sensor with optimal settings
-  particleSensor.setup(); // Default settings
-  particleSensor.setPulseAmplitudeRed(0x0A); // Turn Red LED to low to indicate sensor is running
-  particleSensor.setPulseAmplitudeGreen(0);  // Turn off Green LED
-
-  Serial.println("{\"message\": \"MAX30102 initialized successfully\"}");
-  delay(100);
+  particleSensor.setup();
+  particleSensor.setPulseAmplitudeRed(0x0A);
+  particleSensor.setPulseAmplitudeGreen(0);
+  
+  Serial.println("{\"status\":\"ready\"}");
 }
 
 void loop() {
-  // Read IR and Red values from sensor
   irValue = particleSensor.getIR();
   redValue = particleSensor.getRed();
 
-  // Check if finger is placed on sensor (IR value threshold)
+  // Check for finger placement (IR threshold)
   if (irValue < 50000) {
-    // No finger detected
     beatAvg = 0;
-    spo2Value = 0;
+    spo2 = 0;
 
-    // Send error message every 5 seconds when no finger detected
     if (millis() - lastSendTime > 5000) {
-      Serial.println("{\"error\": \"No finger detected\", \"message\": \"Please place finger on sensor\"}");
+      Serial.println("{\"error\":\"No finger detected\"}");
       lastSendTime = millis();
     }
-
     return;
   }
 
-  // Heart Rate Detection
-  if (checkForBeat(irValue) == true) {
-    // A beat was detected
+  // Detect heartbeat
+  if (checkForBeat(irValue)) {
     long delta = millis() - lastBeat;
     lastBeat = millis();
 
     beatsPerMinute = 60 / (delta / 1000.0);
 
-    // Only accept reasonable heart rate values (20-255 bpm)
+    // Validate heart rate range
     if (beatsPerMinute < 255 && beatsPerMinute > 20) {
       rates[rateSpot++] = (byte)beatsPerMinute;
-      rateSpot %= RATE_SIZE; // Wrap around after RATE_SIZE
+      rateSpot %= RATE_SIZE;
 
-      // Calculate average heart rate
       beatAvg = 0;
       for (byte x = 0; x < RATE_SIZE; x++) {
         beatAvg += rates[x];
@@ -101,30 +93,28 @@ void loop() {
     }
   }
 
-  // SpO2 Calculation (simplified algorithm)
+  // Calculate SpO2 (simplified)
   if (redValue > 0 && irValue > 0) {
-    // Calculate ratio of red to IR
-    float ratio = (float)redValue / (float)irValue;
+    double ratio = (double)redValue / (double)irValue;
+    spo2 = 110.0 - (25.0 * ratio);
 
-    // Simplified SpO2 calculation (empirical formula)
-    // Note: This is a simplified approximation
-    spo2Value = (int)(110 - 25 * ratio);
-
-    // Clamp to realistic range (70-100%)
-    if (spo2Value > 100) spo2Value = 100;
-    if (spo2Value < 70) spo2Value = 70;
+    // Clamp to realistic range
+    if (spo2 > 100.0) spo2 = 100.0;
+    if (spo2 < 70.0) spo2 = 70.0;
   }
 
-  // Send data via Serial every SEND_INTERVAL milliseconds
+  // Send data every SEND_INTERVAL
   if (millis() - lastSendTime > SEND_INTERVAL && beatAvg > 0) {
-    // Send JSON formatted data
-    Serial.print("{\"heart_rate\": ");
+    Serial.print("{\"heart_rate\":");
     Serial.print(beatAvg);
-    Serial.print(", \"spo2\": ");
-    Serial.print(spo2Value);
-    Serial.print(", \"ir\": ");
-    Serial.print(irValue);
+    Serial.print(",\"spo2\":");
+    Serial.print((int)spo2);
     Serial.println("}");
+
+    lastSendTime = millis();
+  }
+}
+
 
     lastSendTime = millis();
   }
