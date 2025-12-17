@@ -369,8 +369,8 @@ Sistem Informasi Kesehatan adalah platform komprehensif yang mendukung operasion
 9. Sistem simpan ke Pasien
 10. Jika create akun:
     a. Hash password
-    b. Simpan ke users dengan role='patient'
-    c. Link profile_id ke ID_pasien
+    b. Simpan ke users dengan role='patient' dan dapatkan user_id
+    c. Update Pasien dengan user_id
 11. Tampilkan alert dengan ID_pasien
 12. Redirect ke daftar pasien
 ```

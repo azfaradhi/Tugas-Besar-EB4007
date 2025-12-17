@@ -121,18 +121,39 @@ export async function POST(request: NextRequest) {
     const count = countResult[0].count;
     const ID_pertemuan = `PRT${String(count + 1).padStart(3, '0')}`;
 
+    // Auto-generate ruangan berdasarkan ID dokter (RXXX dimana XXX = ID dokter)
+    const ID_ruangan = `R${ID_Dokter.replace('K', '')}`;
+
     const tanggalFormatted = Tanggal;
 
+    // Insert ke Pertemuan
     const result: any = await query(
       `INSERT INTO Pertemuan
-       (ID_pertemuan, ID_Pasien, ID_Dokter, Tanggal, Waktu_mulai, status)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [ID_pertemuan, ID_Pasien, ID_Dokter, tanggalFormatted, Waktu_mulai, 'scheduled']
+       (ID_pertemuan, ID_Pasien, ID_Dokter, ID_ruangan, Tanggal, Waktu_mulai, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [ID_pertemuan, ID_Pasien, ID_Dokter, ID_ruangan, tanggalFormatted, Waktu_mulai, 'scheduled']
+    );
+
+    // Insert ke Jadwal_Praktik juga
+    const countJadwal: any = await query(
+      'SELECT COUNT(*) as count FROM Jadwal_Praktik'
+    );
+    const countJ = countJadwal[0].count;
+    const ID_jadwal = `JDW${String(countJ + 1).padStart(3, '0')}`;
+
+    // Combine tanggal dan waktu untuk Date column di Jadwal_Praktik
+    const dateTime = `${tanggalFormatted} ${Waktu_mulai}`;
+
+    await query(
+      `INSERT INTO Jadwal_Praktik (ID_jadwal, ID_Dokter, ID_ruangan, Date)
+       VALUES (?, ?, ?, ?)`,
+      [ID_jadwal, ID_Dokter, ID_ruangan, dateTime]
     );
 
     return NextResponse.json({
       success: true,
       ID_pertemuan: ID_pertemuan,
+      ID_ruangan: ID_ruangan,
       message: 'Pertemuan berhasil dibuat'
     });
   } catch (error) {

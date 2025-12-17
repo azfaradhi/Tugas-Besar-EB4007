@@ -138,12 +138,40 @@ export async function POST(request: NextRequest) {
       [ID_hasil, ID_pertemuan, diagnosis, symptoms, vital_signs_str, treatment_plan, notes, status || 'completed']
     );
 
+    // Update Pertemuan: set status to 'completed' and Waktu_selesai to current time
+    const currentTime = new Date().toLocaleTimeString('en-GB', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+
+    await query(
+      `UPDATE Pertemuan
+       SET status = 'completed', Waktu_selesai = ?
+       WHERE ID_pertemuan = ?`,
+      [currentTime, ID_pertemuan]
+    );
+
+    let totalHargaObat = 0;
+
     if (obat && Array.isArray(obat) && obat.length > 0) {
       for (const item of obat) {
         await query(
           'INSERT INTO Hasil_Obat (ID_hasil, ID_Obat, Dosis, Frekuensi, Durasi_hari, Qty) VALUES (?, ?, ?, ?, ?, ?)',
           [ID_hasil, item.ID_Obat, item.Dosis || null, item.Frekuensi || null, item.Durasi_hari || null, item.Qty || null]
         );
+
+        // Get harga obat untuk calculate total
+        const obatData: any = await query(
+          'SELECT Harga_satuan FROM Obat WHERE ID_obat = ?',
+          [item.ID_Obat]
+        );
+        if (obatData && obatData.length > 0) {
+          const hargaSatuan = obatData[0].Harga_satuan || 0;
+          const qty = item.Qty || 0;
+          totalHargaObat += hargaSatuan * qty;
+        }
       }
     }
 
@@ -175,6 +203,46 @@ export async function POST(request: NextRequest) {
          VALUES (?, ?, ${fields.map(() => '?').join(', ')})`,
         [ID_uji, ID_hasil, ...values]
       );
+    }
+
+    // AUTO-CREATE BILLING
+    // Get ID_Pasien from Pertemuan
+    const pertemuanData: any = await query(
+      'SELECT ID_Pasien FROM Pertemuan WHERE ID_pertemuan = ?',
+      [ID_pertemuan]
+    );
+
+    if (pertemuanData && pertemuanData.length > 0) {
+      const ID_Pasien = pertemuanData[0].ID_Pasien;
+
+      // 1. Create Billing untuk biaya konsultasi/pemeriksaan
+      const biayaKonsultasi = 100000; // Rp 100.000 (bisa disesuaikan)
+      const countBilling: any = await query(
+        'SELECT COUNT(*) as count FROM Billing'
+      );
+      const ID_billing = `BIL${String(countBilling[0].count + 1).padStart(3, '0')}`;
+
+      await query(
+        `INSERT INTO Billing
+         (ID_billing, ID_pasien, ID_pertemuan, Total_harga, isLunas)
+         VALUES (?, ?, ?, ?, FALSE)`,
+        [ID_billing, ID_Pasien, ID_pertemuan, biayaKonsultasi]
+      );
+
+      // 2. Create Billing_Farmasi untuk obat (jika ada)
+      if (totalHargaObat > 0) {
+        const countBillingFarmasi: any = await query(
+          'SELECT COUNT(*) as count FROM Billing_Farmasi'
+        );
+        const ID_billing_farmasi = `BF${String(countBillingFarmasi[0].count + 1).padStart(6, '0')}`;
+
+        await query(
+          `INSERT INTO Billing_Farmasi
+           (ID_billing_farmasi, ID_hasil, ID_pasien, Total_harga, isLunas)
+           VALUES (?, ?, ?, ?, FALSE)`,
+          [ID_billing_farmasi, ID_hasil, ID_Pasien, totalHargaObat]
+        );
+      }
     }
 
     return NextResponse.json({

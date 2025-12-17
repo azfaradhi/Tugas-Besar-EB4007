@@ -56,7 +56,6 @@ export async function POST(request: NextRequest) {
       Alamat,
       Golongan_darah,
       Riwayat_penyakit,
-      Nama_ibu_kandung,
       createUser,
       username,
       password
@@ -91,17 +90,17 @@ export async function POST(request: NextRequest) {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const userResult: any = await query(
-        'INSERT INTO users (username, password, role, profile_id) VALUES (?, ?, ?, ?)',
-        [username, hashedPassword, 'patient', ID_pasien]
+        'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+        [username, hashedPassword, 'patient']
       );
       user_id = userResult.insertId;
     }
 
     await query(
       `INSERT INTO Pasien
-       (ID_pasien, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah, Riwayat_penyakit, Nama_ibu_kandung)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ID_pasien, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon || null, Alamat || null, Golongan_darah || null, Riwayat_penyakit || null, Nama_ibu_kandung || null]
+       (ID_pasien, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah, Riwayat_penyakit)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ID_pasien, user_id, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon || null, Alamat || null, Golongan_darah || null, Riwayat_penyakit || null]
     );
 
     return NextResponse.json({

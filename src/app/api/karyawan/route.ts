@@ -144,8 +144,8 @@ export async function POST(request: NextRequest) {
       }
 
       const userResult: any = await query(
-        'INSERT INTO users (username, password, role, profile_id) VALUES (?, ?, ?, ?)',
-        [username, hashedPassword, userRole, ID_karyawan]
+        'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+        [username, hashedPassword, userRole]
       );
       user_id = userResult.insertId;
     }

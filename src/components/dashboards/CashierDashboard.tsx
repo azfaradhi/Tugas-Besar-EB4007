@@ -10,12 +10,14 @@ interface CashierDashboardProps {
 interface Billing {
   ID_billing: string;
   ID_pasien: string;
+  ID_pertemuan: string | null;
+  Total_harga: number;
   Lunas_date: string | null;
-  Jenis_pembayaran: string;
+  Jenis_pembayaran: string | null;
   isLunas: number;
-  nama_pasien: string;
-  NIK: string;
-  No_telpon: string;
+  patient_name: string;
+  patient_number: string;
+  phone: string;
 }
 
 export default function CashierDashboard({ user }: CashierDashboardProps) {
@@ -196,7 +198,8 @@ export default function CashierDashboard({ user }: CashierDashboardProps) {
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">ID Tagihan</th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Pasien</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">NIK</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">ID Pasien</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Total Harga</th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Metode Pembayaran</th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Status</th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Tanggal Lunas</th>
@@ -207,12 +210,19 @@ export default function CashierDashboard({ user }: CashierDashboardProps) {
                   {filteredBillings.map((billing) => (
                     <tr key={billing.ID_billing} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-3 px-4 text-sm text-gray-900">{billing.ID_billing}</td>
-                      <td className="py-3 px-4 text-sm text-gray-900">{billing.nama_pasien}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{billing.NIK}</td>
+                      <td className="py-3 px-4 text-sm text-gray-900">{billing.patient_name}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600">{billing.patient_number}</td>
+                      <td className="py-3 px-4 text-sm text-gray-900 font-semibold">
+                        Rp {billing.Total_harga?.toLocaleString('id-ID') || 0}
+                      </td>
                       <td className="py-3 px-4 text-sm text-gray-900">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                          {billing.Jenis_pembayaran}
-                        </span>
+                        {billing.Jenis_pembayaran ? (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                            {billing.Jenis_pembayaran}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         {billing.isLunas === 1 ? (
@@ -260,15 +270,21 @@ export default function CashierDashboard({ user }: CashierDashboardProps) {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Pasien:</span>
-                <span className="font-medium text-gray-900">{selectedBilling.nama_pasien}</span>
+                <span className="font-medium text-gray-900">{selectedBilling.patient_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">NIK:</span>
-                <span className="font-medium text-gray-900">{selectedBilling.NIK}</span>
+                <span className="text-gray-600">ID Pasien:</span>
+                <span className="font-medium text-gray-900">{selectedBilling.patient_number}</span>
+              </div>
+              <div className="flex justify-between border-t pt-3">
+                <span className="text-gray-600 font-semibold">Total Harga:</span>
+                <span className="font-bold text-gray-900 text-lg">
+                  Rp {selectedBilling.Total_harga?.toLocaleString('id-ID') || 0}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Metode Pembayaran:</span>
-                <span className="font-medium text-gray-900">{selectedBilling.Jenis_pembayaran}</span>
+                <span className="font-medium text-gray-900">{selectedBilling.Jenis_pembayaran || '-'}</span>
               </div>
             </div>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">

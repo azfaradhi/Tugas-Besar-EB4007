@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
     const patientNumber = `P${year}${month}${sequential.toString().padStart(4, '0')}`;
 
     const [userResult] = await db.query<any>(
-      'INSERT INTO users (username, password, role, profile_id) VALUES (?, ?, ?, ?)',
-      [username, hashedPassword, 'patient', patientNumber]
+      'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+      [username, hashedPassword, 'patient']
     );
 
     const userId = userResult.insertId;

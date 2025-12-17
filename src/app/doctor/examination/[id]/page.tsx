@@ -18,7 +18,6 @@ interface Patient {
   Alamat: string;
   Golongan_darah: string;
   Riwayat_penyakit: string | null;
-  Nama_ibu_kandung: string;
 }
 
 interface Appointment {

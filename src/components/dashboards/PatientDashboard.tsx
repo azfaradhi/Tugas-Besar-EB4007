@@ -161,15 +161,14 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
                 {appointments.slice(0, 5).map((apt: any, index: number) => {
                   // Ambil string tanggal langsung dari database (YYYY-MM-DD)
                   const aptDateStr = apt.Tanggal; // Sudah format YYYY-MM-DD dari DATE_FORMAT
-                  const today = new Date();
-                  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                  const isPast = aptDateStr < todayStr;
-                  const status = isPast ? 'completed' : 'scheduled';
-                  
+
                   // Parse untuk display saja (gunakan local timezone)
                   const [year, month, day] = aptDateStr.split('-').map(Number);
                   const displayDate = new Date(year, month - 1, day);
-                  
+
+                  // Gunakan status dari database
+                  const status = apt.status || 'scheduled';
+
                   return (
                     <div key={apt.ID_pertemuan || index} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition duration-200">
                       <div className="flex items-start justify-between mb-2">

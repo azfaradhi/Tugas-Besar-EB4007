@@ -45,8 +45,7 @@ export async function POST(request: NextRequest) {
       No_telpon,
       Alamat,
       Golongan_darah,
-      Riwayat_penyakit,
-      Nama_ibu_kandung
+      Riwayat_penyakit
     } = body;
 
     if (!Nama || !NIK || !Tanggal_lahir || !Jenis_kelamin) {
@@ -70,9 +69,9 @@ export async function POST(request: NextRequest) {
 
     const [result] = await db.query(
       `INSERT INTO Pasien
-      (ID_pasien, Nama, NIK, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah, Riwayat_penyakit, Nama_ibu_kandung)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ID_pasien, Nama, NIK, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah, Riwayat_penyakit, Nama_ibu_kandung]
+      (ID_pasien, Nama, NIK, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah, Riwayat_penyakit)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ID_pasien, Nama, NIK, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah, Riwayat_penyakit]
     );
 
     return NextResponse.json({

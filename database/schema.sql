@@ -37,7 +37,6 @@ CREATE TABLE users (
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role ENUM('patient', 'staff_registration', 'doctor', 'staff_pharmacy', 'staff_lab', 'staff_cashier') NOT NULL,
-    profile_id VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_username (username),
@@ -90,7 +89,6 @@ CREATE TABLE Pasien (
     Alamat VARCHAR(255),
     Golongan_darah VARCHAR(5),
     Riwayat_penyakit TEXT,
-    Nama_ibu_kandung VARCHAR(100),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_nama (Nama),
     INDEX idx_user_id (user_id)
