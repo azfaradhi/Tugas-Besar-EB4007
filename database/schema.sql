@@ -9,6 +9,7 @@ SET time_zone = '+07:00';
 -- DROP TABLES (reverse dependency order)
 -- ================================================================================
 DROP TABLE IF EXISTS wearable_data;
+DROP TABLE IF EXISTS wearable_data;
 DROP TABLE IF EXISTS UrinTest;
 DROP TABLE IF EXISTS Ronsen;
 DROP TABLE IF EXISTS Hasil_Obat;
@@ -301,17 +302,69 @@ CREATE TABLE Billing_Farmasi (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
+-- TABLE: monitoring_sessions
+-- ================================================================================
+CREATE TABLE monitoring_sessions (
+    session_id VARCHAR(50) PRIMARY KEY,
+    patient_id VARCHAR(20) NOT NULL,
+    doctor_id VARCHAR(20) NOT NULL,
+    appointment_id VARCHAR(20),
+    status ENUM('active', 'completed', 'cancelled') DEFAULT 'active',
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP NULL,
+    avg_heart_rate DECIMAL(10,2),
+    min_heart_rate DECIMAL(10,2),
+    max_heart_rate DECIMAL(10,2),
+    avg_spo2 DECIMAL(10,2),
+    min_spo2 DECIMAL(10,2),
+    max_spo2 DECIMAL(10,2),
+    has_anomaly BOOLEAN DEFAULT FALSE,
+    notes TEXT,
+    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien),
+    FOREIGN KEY (doctor_id) REFERENCES Karyawan(ID_karyawan),
+    INDEX idx_status (status),
+    INDEX idx_patient (patient_id),
+    INDEX idx_doctor (doctor_id),
+    INDEX idx_started_at (started_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='IoT monitoring sessions for real-time health monitoring';
+
+-- ================================================================================
 -- TABLE: wearable_data
 -- ================================================================================
 CREATE TABLE wearable_data (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(50),
     patient_id VARCHAR(20) NOT NULL,
     measurement_type ENUM('heart_rate','spo2'),
     value DECIMAL(10,2),
     unit VARCHAR(10),
+    status ENUM('normal', 'warning', 'critical'),
     measured_at DATETIME,
-    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    FOREIGN KEY (session_id) REFERENCES monitoring_sessions(session_id) ON DELETE SET NULL,
+    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien),
+    INDEX idx_session (session_id),
+    INDEX idx_patient (patient_id),
+    INDEX idx_measured_at (measured_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Time-series data from wearable devices';
+
+-- ================================================================================
+-- TABLE: wearable_data
+-- ================================================================================
+CREATE TABLE wearable_data (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(50),
+    patient_id VARCHAR(20) NOT NULL,
+    measurement_type ENUM('heart_rate','spo2'),
+    value DECIMAL(10,2),
+    unit VARCHAR(10),
+    status ENUM('normal', 'warning', 'critical'),
+    measured_at DATETIME,
+    FOREIGN KEY (session_id) REFERENCES monitoring_sessions(session_id) ON DELETE SET NULL,
+    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien),
+    INDEX idx_session (session_id),
+    INDEX idx_patient (patient_id),
+    INDEX idx_measured_at (measured_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Time-series data from wearable devices';
 
 -- ================================================================================
 -- END OF SCHEMA
