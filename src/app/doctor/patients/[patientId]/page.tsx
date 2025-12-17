@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { RowDataPacket } from 'mysql2';
     
 interface PatientRow extends RowDataPacket {
-  ID_Pasien: number;
+  ID_Pasien: string;
   Nama: string;
   Tanggal_lahir: string | null;
   Jenis_kelamin: string | null;
@@ -14,7 +14,7 @@ interface PatientRow extends RowDataPacket {
 }
 
 interface AppointmentRow extends RowDataPacket {
-  ID_pertemuan: number;
+  ID_pertemuan: string;
   Tanggal: string;
   Waktu_mulai: string;
   Waktu_selesai: string | null;
@@ -23,7 +23,7 @@ interface AppointmentRow extends RowDataPacket {
 }
 
 interface MedicalRecordRow extends RowDataPacket {
-  ID_rekam: number;
+  ID_rekam: string;
   Tanggal: string;
   Diagnosa: string | null;
   Catatan: string | null;
@@ -52,10 +52,9 @@ function calcAge(dateStr: string | null) {
 }
 
 export default async function PatientDetailPage(props: {
-  params: Promise<{ id: string }>
+  params: Promise<{ patientId: string }>;
 }) {
-  const { id } = await props.params;
-  const patientId = Number(id);
+  const { patientId } = await props.params;
 
   const user = await getCurrentUser();
 
@@ -63,7 +62,7 @@ export default async function PatientDetailPage(props: {
     redirect('/login');
   }
 
-  if (Number.isNaN(patientId)) notFound();
+  if ((!patientId)) notFound();
 
   const [patientRows] = await db.query<PatientRow[]>(
     `
@@ -243,50 +242,6 @@ export default async function PatientDetailPage(props: {
                           </span>
                         )}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN */}
-          <div className="space-y-6">
-            {/* Medical records */}
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Rekam Medis
-                </h2>
-                <span className="text-xs text-slate-400">
-                  {medicalRows.length} record
-                </span>
-              </div>
-
-              {medicalRows.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  Belum ada rekam medis yang tercatat.
-                </p>
-              ) : (
-                <div className="space-y-3 text-sm">
-                  {medicalRows.map((rec) => (
-                    <div
-                      key={rec.ID_rekam}
-                      className="rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
-                    >
-                      <p className="text-xs text-slate-500">
-                        {formatDate(rec.Tanggal)}
-                      </p>
-                      {rec.Diagnosa && (
-                        <p className="font-semibold text-slate-900">
-                          Diagnosa: {rec.Diagnosa}
-                        </p>
-                      )}
-                      {rec.Catatan && (
-                        <p className="mt-1 text-xs text-slate-500">
-                          Catatan: {rec.Catatan}
-                        </p>
-                      )}
                     </div>
                   ))}
                 </div>

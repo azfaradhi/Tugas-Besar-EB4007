@@ -82,7 +82,7 @@ export default function PrescriptionsPage() {
                   ID_billing_farmasi: billing.ID_billing_farmasi,
                   Total_harga: billing.Total_harga,
                   status_proses: billing.status_proses || 'pending',
-                  isLunas: billing.isLunas,
+                  isLunas: Boolean(billing.isLunas),
                 } : null,
               };
             } catch (error) {

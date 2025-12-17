@@ -469,7 +469,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     const med = medications.find(m => m.id === e.target.value);
                     setSelectedMedication(med || null);
                   }}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 >
                   <option value="">-- Pilih Obat --</option>
                   {medications.map(med => (
@@ -488,7 +488,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     placeholder="Contoh: 500mg"
                     value={newPrescriptionItem.dosage}
                     onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, dosage: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
                 <div>
@@ -498,21 +498,29 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     placeholder="Contoh: 3x sehari"
                     value={newPrescriptionItem.frequency}
                     onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, frequency: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Durasi</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: 7 hari"
-                    value={newPrescriptionItem.duration}
-                    onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, duration: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
+                  <label className="text-sm font-medium mb-1 flex">Durasi</label>
+                   <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={newPrescriptionItem.duration}
+                      onChange={(e) =>
+                        setNewPrescriptionItem({
+                          ...newPrescriptionItem,
+                          duration: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-600">Hari</span>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Jumlah</label>
@@ -521,7 +529,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                     min={1}
                     value={newPrescriptionItem.quantity}
                     onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, quantity: parseInt(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
               </div>
@@ -533,7 +541,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
                   placeholder="Contoh: Diminum setelah makan"
                   value={newPrescriptionItem.instructions}
                   onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, instructions: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
             </div>

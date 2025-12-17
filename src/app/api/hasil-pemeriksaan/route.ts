@@ -94,10 +94,7 @@ export async function GET(request: NextRequest) {
       result.urin_test = urinResult.length > 0 ? urinResult[0] : null;
 
       result.next_step = extractNextStep(result.notes || null);
-      const createdISO = result.tanggal_pertemuan
-        ? new Date(`${result.tanggal_pertemuan}T${(result.Waktu_mulai || '00:00:00')}`).toISOString()
-        : new Date().toISOString();
-      result.created_at = createdISO;
+      result.created_at = result.tanggal_pertemuan ?? null;
     }
 
     const records = results.map(r => ({

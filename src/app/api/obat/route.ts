@@ -52,9 +52,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { Nama, Kategori } = body;
+    const { Nama, Kategori, Aturan_pakai, Harga_satuan } = body;
 
-    if (!Nama || !Kategori) {
+    if (!Nama || !Kategori || Harga_satuan == null) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
     const ID_obat = `O${String(count + 1).padStart(6, '0')}`;
 
     await query(
-      'INSERT INTO Obat (ID_obat, Nama, Kategori) VALUES (?, ?, ?)',
-      [ID_obat, Nama, Kategori]
+      'INSERT INTO Obat (ID_obat, Nama, Kategori, Aturan_pakai, Harga_satuan) VALUES (?, ?, ?, ?, ?)',
+      [ID_obat, Nama, Kategori, Aturan_pakai, Harga_satuan]
     );
 
     return NextResponse.json({
