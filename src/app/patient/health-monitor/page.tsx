@@ -68,15 +68,30 @@ export default function HealthMonitorPage() {
 
   const handleConnect = async () => {
     if (!('serial' in navigator)) {
-      setDeviceError('Web Serial API not supported in this browser. Please use Chrome, Edge, or Opera.');
+      setDeviceError('Web Serial API tidak didukung browser ini. Gunakan Chrome, Edge, atau Opera untuk koneksi USB Serial.');
       return;
     }
 
     try {
       setDeviceError('');
+
+      // Clean up any existing connection first
+      if (portRef.current) {
+        await handleDisconnect();
+      }
+
       const port = await (navigator as any).serial.requestPort();
-      await port.open({ baudRate: 9600 });
-      portRef.current = port;
+
+      // Check if port is already open
+      if (port.readable && port.writable) {
+        // Port is already open, use it directly
+        portRef.current = port;
+      } else {
+        // Port is closed, open it
+        await port.open({ baudRate: 9600 });
+        portRef.current = port;
+      }
+
       setIsConnected(true);
 
       // Connect to WebSocket server
@@ -97,31 +112,55 @@ export default function HealthMonitorPage() {
       readerRef.current = reader;
 
       try {
+        let buffer = '';
         while (true) {
           const { value, done } = await reader.read();
           if (done) {
             // Reader has been canceled.
             break;
           }
-          // Simple check to filter out non-JSON noise
-          if (value && value.startsWith('{') && value.endsWith('}')) {
-            try {
-              const data = JSON.parse(value);
-              if (data.heart_rate && data.spo2) {
-                setRealtimeData(data);
-                // Send data to WebSocket server
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ ...data, patientId: user.profileId }));
+
+          // DEBUG: Log raw data dari Arduino
+          console.log('Raw data from Arduino:', value);
+
+          // Tambahkan ke buffer
+          buffer += value;
+
+          // Cari JSON objects dalam buffer
+          const jsonMatches = buffer.match(/\{[^}]+\}/g);
+
+          if (jsonMatches) {
+            for (const jsonStr of jsonMatches) {
+              console.log('Found JSON:', jsonStr);
+              try {
+                const data = JSON.parse(jsonStr);
+                console.log('Parsed data:', data);
+
+                if (data.heart_rate && data.spo2) {
+                  setRealtimeData(data);
+                  console.log('Data updated in UI');
+                  // Send data to WebSocket server
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({ ...data, patientId: user.profileId }));
+                  }
                 }
+                if (data.error) { // Error message from Arduino
+                  setDeviceError(data.message || data.error);
+                } else {
+                  setDeviceError(''); // Clear device error if data comes in
+                }
+
+                // Hapus JSON yang sudah diproses dari buffer
+                buffer = buffer.replace(jsonStr, '');
+              } catch (parseError) {
+                console.warn('Could not parse JSON:', jsonStr, parseError);
               }
-              if (data.error) { // Error message from Arduino
-                setDeviceError(data.message || data.error);
-              } else {
-                setDeviceError(''); // Clear device error if data comes in
-              }
-            } catch (parseError) {
-               console.warn('Could not parse JSON from serial port:', value);
             }
+          }
+
+          // Bersihkan buffer jika terlalu panjang (lebih dari 1000 karakter)
+          if (buffer.length > 1000) {
+            buffer = buffer.slice(-500);
           }
         }
       } catch (error) {
@@ -150,27 +189,45 @@ export default function HealthMonitorPage() {
   const handleDisconnect = async () => {
     // Close WebSocket connection
     if (wsRef.current) {
-      wsRef.current.close();
+      try {
+        wsRef.current.close();
+      } catch(e) {
+        console.log('Error closing WebSocket:', e);
+      }
       wsRef.current = null;
     }
-    
-    // Close Serial Port
+
+    // Close Serial Port Reader
     if (readerRef.current) {
       try {
         await readerRef.current.cancel();
-      } catch(e) { /* Ignore error */ }
-      readerRef.current.releaseLock();
+      } catch(e) {
+        console.log('Error canceling reader:', e);
+      }
+      try {
+        readerRef.current.releaseLock();
+      } catch(e) {
+        console.log('Error releasing reader lock:', e);
+      }
       readerRef.current = null;
     }
+
+    // Close Serial Port
     if (portRef.current) {
-       try {
-        await portRef.current.close();
-       } catch(e) { /* Ignore error */ }
+      try {
+        // Only close if it's actually open
+        if (portRef.current.readable || portRef.current.writable) {
+          await portRef.current.close();
+        }
+      } catch(e) {
+        console.log('Error closing port:', e);
+      }
       portRef.current = null;
     }
 
     setIsConnected(false);
     setRealtimeData(null);
+    setDeviceError('');
   };
 
 
@@ -250,18 +307,24 @@ export default function HealthMonitorPage() {
             <p className="text-gray-600 mt-1">Riwayat pengukuran Heart Rate & SpO2 dari MAX30102</p>
           </div>
           {!isConnected ? (
-            <button 
+            <button
               onClick={handleConnect}
               disabled={!user?.profileId}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Connect to Device
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Connect USB Serial
             </button>
           ) : (
-            <button 
+            <button
               onClick={handleDisconnect}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 flex items-center gap-2"
             >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
               Disconnect
             </button>
           )}
@@ -412,6 +475,34 @@ export default function HealthMonitorPage() {
               </table>
             </div>
           )}
+        </div>
+
+        {/* Connection Info Card */}
+        <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-medium text-green-800">Cara Koneksi Perangkat</h3>
+              <div className="mt-2 text-sm text-green-700">
+                <p className="mb-2"><strong>Mendukung:</strong> Arduino/ESP32 via USB Serial (COM Port)</p>
+                <ul className="list-decimal list-inside space-y-1 ml-2">
+                  <li>Hubungkan Arduino via <strong>kabel USB</strong> ke komputer</li>
+                  <li>Upload sketch yang mengirim data JSON: <code className="bg-green-100 px-1 rounded">{'{"heart_rate":75,"spo2":98}'}</code></li>
+                  <li>Gunakan browser <strong>Chrome, Edge, atau Opera</strong> (Web Serial API)</li>
+                  <li>Klik tombol "Connect to Device"</li>
+                  <li>Pilih port Arduino (misal: COM3, /dev/ttyUSB0)</li>
+                  <li>Baudrate: 9600</li>
+                </ul>
+                <p className="mt-2 text-xs">
+                  <strong>Note:</strong> Firefox dan Safari belum mendukung Web Serial API.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Info Card */}

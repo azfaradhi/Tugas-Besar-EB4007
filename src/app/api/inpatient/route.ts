@@ -1,4 +1,3 @@
-// app/api/inpatient/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { RowDataPacket } from 'mysql2';
@@ -8,7 +7,7 @@ type Row = RowDataPacket & {
   Tanggal: string;
   Waktu_mulai: string;
   Waktu_selesai: string | null;
-  status: 'scheduled' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   ID_ruangan: string | null;
   Lantai: number | null;
   GedungNama: string | null;
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
   try {
     const [rows] = await db.query<Row[]>(
       `
-      SELECT 
+      SELECT
         p.ID_pertemuan,
         p.Tanggal,
         p.Waktu_mulai,
@@ -37,11 +36,12 @@ export async function GET(req: NextRequest) {
         r.Lantai,
         g.Nama AS GedungNama,
         k.Nama AS DokterNama,
-        pr.Nama AS PerawatNama
+        kp.Nama AS PerawatNama
       FROM Pertemuan p
       JOIN Dokter d        ON d.ID_karyawan   = p.ID_Dokter
       JOIN Karyawan k      ON k.ID_karyawan   = d.ID_karyawan
-      LEFT JOIN Perawat pr ON pr.ID_perawat   = p.ID_Perawat
+      LEFT JOIN Perawat pr ON pr.ID_karyawan  = p.ID_Perawat
+      LEFT JOIN Karyawan kp ON kp.ID_karyawan = pr.ID_karyawan
       LEFT JOIN Ruangan r  ON r.ID_ruangan    = p.ID_ruangan
       LEFT JOIN Gedung g   ON g.ID_gedung     = r.ID_gedung
       WHERE p.ID_Pasien = ?

@@ -11,7 +11,6 @@ interface RegistrationDashboardProps {
 interface Pasien {
   ID_pasien: string;
   Nama: string;
-  NIK: string;
   Tanggal_lahir: string;
   Umur: number;
   Jenis_kelamin: string;
@@ -41,14 +40,15 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
   const [searchTerm, setSearchTerm] = useState('');
   const [newPatient, setNewPatient] = useState({
     Nama: '',
-    NIK: '',
     Tanggal_lahir: '',
-    Jenis_kelamin: 'L',
+    Jenis_kelamin: 'Laki-laki',
     No_telpon: '',
     Alamat: '',
     Golongan_darah: '',
     Riwayat_penyakit: '',
-    Nama_ibu_kandung: '',
+    username: '',
+    password: '',
+    confirmPassword: '',
   });
 
   useEffect(() => {
@@ -76,8 +76,23 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
   };
 
   const handleAddPatient = async () => {
-    if (!newPatient.Nama || !newPatient.NIK || !newPatient.Tanggal_lahir || !newPatient.Jenis_kelamin) {
-      alert('Nama, NIK, Tanggal Lahir, dan Jenis Kelamin harus diisi');
+    if (!newPatient.Nama || !newPatient.Tanggal_lahir || !newPatient.Jenis_kelamin) {
+      alert('Nama, Tanggal Lahir, dan Jenis Kelamin harus diisi');
+      return;
+    }
+
+    if (!newPatient.username || !newPatient.password) {
+      alert('Username dan Password harus diisi');
+      return;
+    }
+
+    if (newPatient.password !== newPatient.confirmPassword) {
+      alert('Password dan Konfirmasi Password tidak cocok');
+      return;
+    }
+
+    if (newPatient.password.length < 6) {
+      alert('Password minimal 6 karakter');
       return;
     }
 
@@ -85,7 +100,10 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
       const res = await fetch('/api/pasien', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPatient),
+        body: JSON.stringify({
+          ...newPatient,
+          createUser: true,
+        }),
       });
 
       if (res.ok) {
@@ -93,14 +111,15 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
         setShowAddPatientModal(false);
         setNewPatient({
           Nama: '',
-          NIK: '',
           Tanggal_lahir: '',
-          Jenis_kelamin: 'L',
+          Jenis_kelamin: 'Laki-laki',
           No_telpon: '',
           Alamat: '',
           Golongan_darah: '',
           Riwayat_penyakit: '',
-          Nama_ibu_kandung: '',
+          username: '',
+          password: '',
+          confirmPassword: '',
         });
         fetchData();
       } else {
@@ -123,7 +142,6 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
 
   const filteredPasiens = pasiens.filter(p =>
     p.Nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.NIK.includes(searchTerm) ||
     (p.No_telpon && p.No_telpon.includes(searchTerm))
   );
 
@@ -201,7 +219,7 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
 
             <input
               type="text"
-              placeholder="Cari pasien (Nama, NIK, No. Telpon)..."
+              placeholder="Cari pasien (Nama, No. Telpon)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg mb-4 text-gray-900"
@@ -213,9 +231,8 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <p className="font-semibold text-gray-900">{pasien.Nama}</p>
-                      <p className="text-sm text-gray-600">NIK: {pasien.NIK}</p>
                       <p className="text-sm text-gray-600">
-                        {pasien.Jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}, {pasien.Umur} tahun
+                        {pasien.Jenis_kelamin}, {pasien.Umur} tahun
                       </p>
                       {pasien.No_telpon && (
                         <p className="text-sm text-gray-600">Telp: {pasien.No_telpon}</p>
@@ -277,21 +294,48 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold mb-4">Tambah Pasien Baru</h3>
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 border-b pb-3 mb-2">
+                <h4 className="text-md font-medium text-gray-800">Informasi Akun</h4>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Username *</label>
+                <input
+                  type="text"
+                  value={newPatient.username}
+                  onChange={(e) => setNewPatient({ ...newPatient, username: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900"
+                  placeholder="Username untuk login"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                <input
+                  type="password"
+                  value={newPatient.password}
+                  onChange={(e) => setNewPatient({ ...newPatient, password: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900"
+                  placeholder="Minimal 6 karakter"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Konfirmasi Password *</label>
+                <input
+                  type="password"
+                  value={newPatient.confirmPassword}
+                  onChange={(e) => setNewPatient({ ...newPatient, confirmPassword: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900"
+                  placeholder="Ulangi password"
+                />
+              </div>
+              <div className="col-span-2 border-b pb-3 mb-2 mt-2">
+                <h4 className="text-md font-medium text-gray-800">Data Diri</h4>
+              </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap *</label>
                 <input
                   type="text"
                   value={newPatient.Nama}
                   onChange={(e) => setNewPatient({ ...newPatient, Nama: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-gray-900"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">NIK *</label>
-                <input
-                  type="text"
-                  value={newPatient.NIK}
-                  onChange={(e) => setNewPatient({ ...newPatient, NIK: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900"
                 />
               </div>
@@ -311,8 +355,8 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
                   onChange={(e) => setNewPatient({ ...newPatient, Jenis_kelamin: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900"
                 >
-                  <option value="L">Laki-laki</option>
-                  <option value="P">Perempuan</option>
+                  <option value="Laki-laki">Laki-laki</option>
+                  <option value="Perempuan">Perempuan</option>
                 </select>
               </div>
               <div>
@@ -337,15 +381,6 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
                   <option value="AB">AB</option>
                   <option value="O">O</option>
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nama Ibu Kandung</label>
-                <input
-                  type="text"
-                  value={newPatient.Nama_ibu_kandung}
-                  onChange={(e) => setNewPatient({ ...newPatient, Nama_ibu_kandung: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-gray-900"
-                />
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Alamat</label>

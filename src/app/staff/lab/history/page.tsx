@@ -11,7 +11,6 @@ interface LabTest {
   Tanggal: string;
   Waktu_mulai: string;
   nama_pasien: string;
-  NIK: string;
   nama_dokter: string;
   Spesialis: string;
   test_type: 'urin' | 'ronsen' | null;
@@ -84,7 +83,7 @@ export default function LabHistoryPage() {
       !searchTerm ||
       test.nama_pasien?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       test.ID_hasil.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      test.NIK?.toLowerCase().includes(searchTerm.toLowerCase());
+      test.ID_Pasien.toLowerCase().includes(searchTerm.toLowerCase());
 
     return matchesFilter && matchesDate && matchesSearch && hasResults(test);
   });
@@ -140,7 +139,7 @@ export default function LabHistoryPage() {
           <div className="flex-1">
             <input
               type="text"
-              placeholder="Cari pasien, NIK, atau ID hasil..."
+              placeholder="Cari pasien atau ID hasil..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -261,7 +260,7 @@ export default function LabHistoryPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div>
                         <p className="font-medium text-gray-900">{test.nama_pasien}</p>
-                        <p className="text-gray-500 text-xs">{test.NIK}</p>
+                        <p className="text-gray-500 text-xs">{test.ID_Pasien}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

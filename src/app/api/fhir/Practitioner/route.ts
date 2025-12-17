@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const name = searchParams.get('name');
 
     let sql = `
-      SELECT d.*, k.Nama, k.NIK, k.No_telpon
+      SELECT d.*, k.Nama, k.No_telpon, k.Jenis_kelamin, k.Tanggal_lahir
       FROM Dokter d
       LEFT JOIN Karyawan k ON d.ID_karyawan = k.ID_karyawan
       WHERE 1=1
@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (identifier) {
-      sql += ' AND (k.NIK = ? OR d.STR = ?)';
-      params.push(identifier, identifier);
+      sql += ' AND d.STR = ?';
+      params.push(identifier);
     }
 
     if (name) {
@@ -66,10 +66,6 @@ function mapDokterToFHIR(dokter: any) {
     id: dokter.ID_karyawan,
     identifier: [
       {
-        system: 'urn:oid:2.16.840.1.113883.2.4.6.3',
-        value: dokter.NIK
-      },
-      {
         system: 'http://terminology.kemkes.go.id/CodeSystem/practitioner-license-number',
         value: dokter.STR
       }
@@ -87,7 +83,7 @@ function mapDokterToFHIR(dokter: any) {
         value: dokter.No_telpon
       }
     ] : [],
-    gender: dokter.Jenis_kelamin === 'L' ? 'male' : 'female',
+    gender: dokter.Jenis_kelamin === 'Laki-laki' ? 'male' : 'female',
     birthDate: dokter.Tanggal_lahir,
     qualification: [
       {

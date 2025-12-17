@@ -3,11 +3,74 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-interface Patient { ID_pasien: number; Nama: string; NIK: string; Tanggal_lahir: string; Umur: number; Jenis_kelamin: string; No_telpon: string; Alamat: string; Golongan_darah: string; Riwayat_penyakit: string | null; Nama_ibu_kandung: string; }
-interface Appointment { ID_pertemuan: number; ID_Pasien: number; ID_Dokter: number; ID_Perawat: number | null; ID_ruangan: number | null; Tanggal: string; Waktu_mulai: string; Waktu_selesai: string | null; patient_name: string; doctor_specialization: string; doctor_name: string; status?: 'scheduled'|'completed'|'cancelled'; }
-interface Medication { id: number; name: string; unit: string; price: number; }
-interface PrescriptionItem { medication_id: number; medication_name?: string; quantity: number; dosage: string; frequency: string; duration: string; instructions: string; }
-interface VitalSigns { blood_pressure: string; heart_rate: string; temperature: string; respiratory_rate: string; oxygen_saturation: string; weight: string; height: string; }
+interface ExaminationPageProps {
+  appointmentId: string;
+}
+
+interface Patient {
+  ID_pasien: string;
+  Nama: string;
+  Tanggal_lahir: string;
+  Umur: number;
+  Jenis_kelamin: string;
+  No_telpon: string;
+  Alamat: string;
+  Golongan_darah: string;
+  Riwayat_penyakit: string | null;
+}
+
+interface Appointment {
+  ID_pertemuan: string;
+  ID_Pasien: string;
+  ID_Dokter: string;
+  ID_Perawat: string | null;
+  ID_ruangan: string | null;
+  Tanggal: string;
+  Waktu_mulai: string;
+  Waktu_selesai: string | null;
+  patient_name: string;
+  doctor_specialization: string;
+  doctor_name: string;
+}
+
+interface Medication {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+  stock: number;
+  price: number;
+}
+
+interface PrescriptionItem {
+  medication_id: string;
+  medication_name?: string;
+  quantity: number;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  instructions: string;
+}
+
+interface MedicalRecord {
+  ID_hasil: number;
+  diagnosis: string;
+  symptoms: string;
+  treatment_plan: string;
+  notes: string;
+  next_step: string;
+  created_at: string;
+}
+
+interface VitalSigns {
+  blood_pressure: string;
+  heart_rate: string;
+  temperature: string;
+  respiratory_rate: string;
+  oxygen_saturation: string;
+  weight: string;
+  height: string;
+}
 
 export default function ExaminationPage() {
   const router = useRouter();
@@ -34,7 +97,14 @@ export default function ExaminationPage() {
   const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([]);
   const [showMedicationModal, setShowMedicationModal] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState<Medication | null>(null);
-  const [newPrescriptionItem, setNewPrescriptionItem] = useState<PrescriptionItem>({ medication_id:0, quantity:1, dosage:'', frequency:'', duration:'', instructions:'' });
+  const [newPrescriptionItem, setNewPrescriptionItem] = useState<PrescriptionItem>({
+    medication_id: '',
+    quantity: 1,
+    dosage: '',
+    frequency: '',
+    duration: '',
+    instructions: ''
+  });
 
   const [labType, setLabType] = useState<'gula_darah' | 'urin' | ''>('');
 
@@ -62,7 +132,15 @@ export default function ExaminationPage() {
       const medRes = await fetch('/api/obat');
       if (medRes.ok) {
         const medData = await medRes.json();
-        setMedications((medData.obats || []).map((o: any) => ({ id: Number(o.ID_obat), name: o.Nama, unit: o.Kategori, price: Number(o.Harga_satuan ?? 0) })));
+        const normalized: Medication[] = (medData.obats || []).map((o: any) => ({
+          id: o.ID_obat,
+          code: '',
+          name: o.Nama,
+          unit: o.Kategori,
+          stock: 0,
+          price: Number(o.Harga_satuan ?? 0)
+        }));
+        setMedications(normalized);
       }
 
       if (isViewMode) {
@@ -95,7 +173,14 @@ export default function ExaminationPage() {
     setPrescriptionItems(prev => [...prev, { ...newPrescriptionItem, medication_id: selectedMedication.id, medication_name: selectedMedication.name }]);
     setShowMedicationModal(false);
     setSelectedMedication(null);
-    setNewPrescriptionItem({ medication_id:0, quantity:1, dosage:'', frequency:'', duration:'', instructions:'' });
+    setNewPrescriptionItem({
+      medication_id: '',
+      quantity: 1,
+      dosage: '',
+      frequency: '',
+      duration: '',
+      instructions: ''
+    });
   };
 
   const handleRemoveMedication = (index: number) => { if (isViewMode) return; setPrescriptionItems(prev => prev.filter((_, i) => i !== index)); };
@@ -119,7 +204,23 @@ export default function ExaminationPage() {
       const res = await fetch('/api/hasil-pemeriksaan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ID_pertemuan: appointmentId, diagnosis, symptoms, vital_signs: vitalSigns, treatment_plan: treatmentPlan, notes, next_step: nextStep, status: 'completed', obat: prescriptionItems.map(item => ({ ID_Obat: item.medication_id, dosage: item.dosage, frequency: item.frequency, duration: item.duration, quantity: item.quantity })) })
+        body: JSON.stringify({
+          ID_pertemuan: appointmentId,
+          diagnosis,
+          symptoms,
+          vital_signs: vitalSigns,
+          treatment_plan: treatmentPlan,
+          notes,                 // tambahan catatan dokter
+          next_step: nextStep,   // dropdown langkah selanjutnya
+          status: 'completed',
+          obat: prescriptionItems.map(item => ({
+            ID_Obat: item.medication_id,
+            Dosis: item.dosage,
+            Frekuensi: item.frequency,
+            Durasi_hari: item.duration,
+            Qty: item.quantity
+          }))
+        })
       });
       if (!res.ok) throw new Error('Gagal simpan pemeriksaan');
       alert('Pemeriksaan berhasil disimpan');
@@ -225,17 +326,42 @@ export default function ExaminationPage() {
           </div>
         )}
 
-        {!isViewMode && showMedicationModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <h3 className="text-xl font-semibold mb-4">Tambah Obat</h3>
-              <div className="space-y-4">
+      {/* Medication Modal (tetap ADA) */}
+      {showMedicationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold mb-4">Tambah Obat</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Pilih Obat</label>
+                <select
+                  value={selectedMedication?.id || ''}
+                  onChange={(e) => {
+                    const med = medications.find(m => m.id === e.target.value);
+                    setSelectedMedication(med || null);
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">-- Pilih Obat --</option>
+                  {medications.map(med => (
+                    <option key={med.id} value={med.id}>
+                      {med.name} {med.unit ? `(${med.unit})` : ''} {med.price ? `- Rp${med.price}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Pilih Obat</label>
-                  <select value={selectedMedication?.id || ''} onChange={(e) => setSelectedMedication(medications.find(m => m.id === Number(e.target.value)) || null)} className="w-full px-3 py-2 border rounded-lg">
-                    <option value="">-- Pilih Obat --</option>
-                    {medications.map(med => <option key={med.id} value={med.id}>{med.name}{med.unit ? ` (${med.unit})` : ''}{med.price ? ` - Rp${med.price}` : ''}</option>)}
-                  </select>
+                  <label className="block text-sm font-medium mb-1">Dosis</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 500mg"
+                    value={newPrescriptionItem.dosage}
+                    onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, dosage: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium mb-1">Dosis</label><input type="text" value={newPrescriptionItem.dosage} onChange={(e) => setNewPrescriptionItem({ ...newPrescriptionItem, dosage: e.target.value })} className="w-full px-3 py-2 border rounded-lg" /></div>
@@ -251,6 +377,32 @@ export default function ExaminationPage() {
                 <button onClick={() => { setShowMedicationModal(false); setSelectedMedication(null); setNewPrescriptionItem({ medication_id:0, quantity:1, dosage:'', frequency:'', duration:'', instructions:'' }); }} className="px-4 py-2 border rounded-lg">Batal</button>
                 <button onClick={handleAddMedication} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Tambah</button>
               </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowMedicationModal(false);
+                  setSelectedMedication(null);
+                  setNewPrescriptionItem({
+                    medication_id: '',
+                    quantity: 1,
+                    dosage: '',
+                    frequency: '',
+                    duration: '',
+                    instructions: ''
+                  });
+                }}
+                className="px-4 py-2 border rounded-lg"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleAddMedication}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              >
+                Tambah
+              </button>
             </div>
           </div>
         )}

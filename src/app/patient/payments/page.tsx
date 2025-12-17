@@ -10,7 +10,6 @@ interface Billing {
   Jenis_pembayaran: string;
   isLunas: number;
   nama_pasien: string;
-  NIK: string;
 }
 
 export default function PatientPaymentsPage() {

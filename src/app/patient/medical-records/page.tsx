@@ -10,14 +10,25 @@ interface HasilPemeriksaan {
   nama_pasien: string;
   nama_dokter: string;
   Spesialis: string;
+  diagnosis: string;
+  symptoms: string;
+  vital_signs: string;
+  treatment_plan: string;
+  notes: string;
   obat: Array<{
-    ID_Obat: string;
-    Nama: string;
-    Kategori: string;
+    ID_obat: string;
+    nama_obat: string;
+    kategori: string;
+    dosis?: string;
+    frekuensi?: string;
+    durasi_hari?: number;
+    qty?: number;
+    catatan?: string;
   }>;
   ronsen: Array<{
     ID_ronsen: string;
     imgSrc: string;
+    keterangan?: string;
   }>;
   urin_test: {
     ID_uji: string;
@@ -173,16 +184,106 @@ export default function PatientMedicalRecordsPage() {
               </p>
             </div>
 
+            {selectedRecord.diagnosis && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-900 mb-2">Diagnosis</h4>
+                <p className="p-4 bg-red-50 rounded-lg text-gray-900 border-l-4 border-red-500">
+                  {selectedRecord.diagnosis}
+                </p>
+              </div>
+            )}
+
+            {selectedRecord.symptoms && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-900 mb-2">Gejala / Keluhan</h4>
+                <p className="p-4 bg-yellow-50 rounded-lg text-gray-900 border-l-4 border-yellow-500">
+                  {selectedRecord.symptoms}
+                </p>
+              </div>
+            )}
+
+            {selectedRecord.vital_signs && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-900 mb-3">Tanda Vital</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {(() => {
+                    try {
+                      const vitals = JSON.parse(selectedRecord.vital_signs);
+                      return Object.entries(vitals).map(([key, value]: [string, any]) => (
+                        <div key={key} className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <p className="text-xs text-gray-600 mb-1">{key.replace(/_/g, ' ').toUpperCase()}</p>
+                          <p className="font-semibold text-gray-900">{value}</p>
+                        </div>
+                      ));
+                    } catch {
+                      return <p className="text-gray-500 col-span-4">Data tidak tersedia</p>;
+                    }
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {selectedRecord.treatment_plan && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-900 mb-2">Rencana Perawatan</h4>
+                <p className="p-4 bg-green-50 rounded-lg text-gray-900 border-l-4 border-green-500">
+                  {selectedRecord.treatment_plan}
+                </p>
+              </div>
+            )}
+
+            {selectedRecord.notes && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-900 mb-2">Catatan Tambahan</h4>
+                <p className="p-4 bg-purple-50 rounded-lg text-gray-900 border-l-4 border-purple-500">
+                  {selectedRecord.notes}
+                </p>
+              </div>
+            )}
+
             {selectedRecord.obat && selectedRecord.obat.length > 0 && (
               <div className="mb-6">
                 <h4 className="font-semibold text-gray-900 mb-3">Resep Obat</h4>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {selectedRecord.obat.map((obat, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">{obat.Nama}</p>
-                        <p className="text-sm text-gray-600">{obat.Kategori}</p>
+                    <div key={idx} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-semibold text-gray-900 text-lg">{obat.nama_obat}</p>
+                          <p className="text-sm text-gray-600">{obat.kategori}</p>
+                        </div>
+                        {obat.qty && (
+                          <span className="px-3 py-1 bg-blue-600 text-white rounded-full text-sm font-semibold">
+                            {obat.qty} unit
+                          </span>
+                        )}
                       </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        {obat.dosis && (
+                          <div>
+                            <p className="text-xs text-gray-600">Dosis</p>
+                            <p className="text-sm font-medium text-gray-900">{obat.dosis}</p>
+                          </div>
+                        )}
+                        {obat.frekuensi && (
+                          <div>
+                            <p className="text-xs text-gray-600">Frekuensi</p>
+                            <p className="text-sm font-medium text-gray-900">{obat.frekuensi}</p>
+                          </div>
+                        )}
+                        {obat.durasi_hari && (
+                          <div>
+                            <p className="text-xs text-gray-600">Durasi</p>
+                            <p className="text-sm font-medium text-gray-900">{obat.durasi_hari} hari</p>
+                          </div>
+                        )}
+                      </div>
+                      {obat.catatan && (
+                        <div className="mt-3 p-2 bg-white rounded border border-blue-300">
+                          <p className="text-xs text-gray-600 mb-1">Aturan Pakai</p>
+                          <p className="text-sm text-gray-900">{obat.catatan}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -192,14 +293,20 @@ export default function PatientMedicalRecordsPage() {
             {selectedRecord.ronsen && selectedRecord.ronsen.length > 0 && (
               <div className="mb-6">
                 <h4 className="font-semibold text-gray-900 mb-3">Hasil Ronsen</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedRecord.ronsen.map((ronsen) => (
-                    <img
-                      key={ronsen.ID_ronsen}
-                      src={ronsen.imgSrc}
-                      alt="Ronsen"
-                      className="w-full rounded-lg border"
-                    />
+                    <div key={ronsen.ID_ronsen} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <img
+                        src={ronsen.imgSrc}
+                        alt="Ronsen"
+                        className="w-full object-cover"
+                      />
+                      {ronsen.keterangan && (
+                        <div className="p-3 bg-gray-50">
+                          <p className="text-sm text-gray-900">{ronsen.keterangan}</p>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

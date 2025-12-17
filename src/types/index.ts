@@ -13,15 +13,14 @@ export interface User {
   username: string;
   password: string;
   role: UserRole;
-  profile_id?: string;  // Changed to string (VARCHAR(20))
   created_at: Date;
   updated_at: Date;
 }
 
 export interface Patient {
   ID_pasien: string;  // VARCHAR(20) PRIMARY KEY
+  user_id?: number;  // INT UNIQUE - foreign key to users.id
   Nama: string;
-  NIK: string;  // CHAR(16)
   Tanggal_lahir: Date;
   Umur?: number;
   Jenis_kelamin: 'Laki-laki' | 'Perempuan';
@@ -29,14 +28,13 @@ export interface Patient {
   Alamat?: string;
   Golongan_darah?: string;
   Riwayat_penyakit?: string;
-  Nama_ibu_kandung?: string;
 }
 
 // Karyawan base interface
 export interface Karyawan {
   ID_karyawan: string;  // VARCHAR(20) PRIMARY KEY
+  user_id?: number;  // INT UNIQUE - foreign key to users.id
   Nama: string;
-  NIK: string;  // CHAR(16)
   Tanggal_lahir: Date;
   Umur?: number;
   Jenis_kelamin: 'Laki-laki' | 'Perempuan';

@@ -13,6 +13,8 @@ export async function GET(request: NextRequest) {
       SELECT
         b.ID_billing,
         b.ID_pasien,
+        b.ID_pertemuan,
+        b.Total_harga,
         b.Lunas_date,
         b.Jenis_pembayaran,
         b.isLunas,
@@ -40,7 +42,7 @@ export async function GET(request: NextRequest) {
       params.push(status === 'paid' ? 1 : 0);
     }
 
-    sql += ' ORDER BY b.Lunas_date DESC';
+    sql += ' ORDER BY b.created_at DESC';
 
     const [billings] = await db.query(sql, params);
 
@@ -67,38 +69,39 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       ID_pasien,
+      ID_pertemuan,
+      Total_harga,
       Jenis_pembayaran,
       isLunas
     } = body;
 
-    if (!ID_pasien || !Jenis_pembayaran) {
+    if (!ID_pasien || !Total_harga) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Generate billing ID
     const [countResult]: any = await db.query(
       'SELECT COUNT(*) as count FROM Billing'
     );
     const count = countResult[0].count;
-    const billing_id = `BIL${String(count + 1).padStart(6, '0')}`;
+    const billing_id = `BIL${String(count + 1).padStart(3, '0')}`;
 
-    // Validate payment method against ENUM
     const validPaymentMethods = ['Credit', 'Debit', 'Cash'];
-    const paymentMethod = validPaymentMethods.includes(Jenis_pembayaran)
+    const paymentMethod = Jenis_pembayaran && validPaymentMethods.includes(Jenis_pembayaran)
       ? Jenis_pembayaran
-      : 'Cash';
+      : null;
 
-    // Insert into Billing table
     const [result]: any = await db.query(
       `INSERT INTO Billing
-       (ID_billing, ID_pasien, Lunas_date, Jenis_pembayaran, isLunas)
-       VALUES (?, ?, ?, ?, ?)`,
+       (ID_billing, ID_pasien, ID_pertemuan, Total_harga, Lunas_date, Jenis_pembayaran, isLunas)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         billing_id,
         ID_pasien,
+        ID_pertemuan || null,
+        Total_harga,
         isLunas ? new Date() : null,
         paymentMethod,
         isLunas ? 1 : 0
@@ -127,7 +130,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { ID_billing, isLunas, Jenis_pembayaran } = body;
+    const { ID_billing, isLunas, Jenis_pembayaran, Total_harga } = body;
 
     if (!ID_billing) {
       return NextResponse.json(
@@ -138,6 +141,11 @@ export async function PUT(request: NextRequest) {
 
     const updates: string[] = [];
     const values: any[] = [];
+
+    if (Total_harga !== undefined) {
+      updates.push('Total_harga = ?');
+      values.push(Total_harga);
+    }
 
     if (Jenis_pembayaran !== undefined) {
       const validPaymentMethods = ['Credit', 'Debit', 'Cash'];

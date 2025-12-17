@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (identifier) {
-      sql += ' AND NIK = ?';
+      sql += ' AND ID_pasien = ?';
       params.push(identifier);
     }
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       'SELECT COUNT(*) as count FROM Pasien'
     );
     const count = countResult[0].count;
-    const ID_pasien = `P${String(count + 1).padStart(6, '0')}`;
+    const ID_pasien = `P${String(count + 1).padStart(3, '0')}`;
 
     const birthDate = new Date(pasienData.Tanggal_lahir);
     const today = new Date();
@@ -91,12 +91,11 @@ export async function POST(request: NextRequest) {
 
     await query(
       `INSERT INTO Pasien
-       (ID_pasien, Nama, NIK, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (ID_pasien, Nama, Tanggal_lahir, Umur, Jenis_kelamin, No_telpon, Alamat, Golongan_darah)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         ID_pasien,
         pasienData.Nama,
-        pasienData.NIK,
         pasienData.Tanggal_lahir,
         Umur,
         pasienData.Jenis_kelamin,
@@ -135,7 +134,7 @@ function mapPasienToFHIR(pasien: any) {
     identifier: [
       {
         system: 'urn:oid:2.16.840.1.113883.2.4.6.3',
-        value: pasien.NIK
+        value: pasien.ID_pasien
       }
     ],
     active: true,
@@ -151,7 +150,7 @@ function mapPasienToFHIR(pasien: any) {
         value: pasien.No_telpon
       }
     ] : [],
-    gender: pasien.Jenis_kelamin === 'L' ? 'male' : 'female',
+    gender: pasien.Jenis_kelamin === 'Laki-laki' ? 'male' : 'female',
     birthDate: pasien.Tanggal_lahir,
     address: pasien.Alamat ? [
       {
@@ -178,7 +177,6 @@ function mapPasienToFHIR(pasien: any) {
 
 function mapFHIRToPasien(fhirPatient: any) {
   const name = fhirPatient.name?.[0]?.text || '';
-  const identifier = fhirPatient.identifier?.find((i: any) => i.system?.includes('2.16.840.1.113883.2.4.6.3'));
   const telecom = fhirPatient.telecom?.find((t: any) => t.system === 'phone');
   const address = fhirPatient.address?.[0]?.text || '';
   const bloodType = fhirPatient.extension?.find((e: any) =>
@@ -187,9 +185,8 @@ function mapFHIRToPasien(fhirPatient: any) {
 
   return {
     Nama: name,
-    NIK: identifier?.value || '',
     Tanggal_lahir: fhirPatient.birthDate,
-    Jenis_kelamin: fhirPatient.gender === 'male' ? 'L' : 'P',
+    Jenis_kelamin: fhirPatient.gender === 'male' ? 'Laki-laki' : 'Perempuan',
     No_telpon: telecom?.value || '',
     Alamat: address,
     Golongan_darah: bloodType?.valueCodeableConcept?.coding?.[0]?.code || ''

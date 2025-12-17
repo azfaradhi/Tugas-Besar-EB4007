@@ -40,35 +40,38 @@ export async function login(username: string, password: string): Promise<Session
 
     console.log('User found during login:', user);
     // Ambil data profile berdasarkan role dari tabel yang sesuai
-    let profileId = user.profile_id;
+    let profileId = undefined;
     let profileName = undefined;
 
-    if (user.role === 'patient' && profileId) {
-      // Query tabel Pasien berdasarkan profile_id
+    if (user.role === 'patient') {
+      // Query tabel Pasien berdasarkan user_id
       const [patients] = await db.query<any[]>(
-        'SELECT ID_pasien, Nama FROM Pasien WHERE ID_pasien = ?',
-        [profileId]
+        'SELECT ID_pasien, Nama FROM Pasien WHERE user_id = ?',
+        [user.id]
       );
       if (patients.length > 0) {
+        profileId = patients[0].ID_pasien;
         profileName = patients[0].Nama;
       }
-    } else if (user.role === 'doctor' && profileId) {
-      // Query tabel Karyawan untuk dokter berdasarkan profile_id
+    } else if (user.role === 'doctor') {
+      // Query tabel Karyawan untuk dokter berdasarkan user_id
       const [karyawan] = await db.query<any[]>(
-        'SELECT k.ID_karyawan, k.Nama FROM Karyawan k JOIN Dokter d ON k.ID_karyawan = d.ID_karyawan WHERE k.ID_karyawan = ?',
-        [profileId]
+        'SELECT k.ID_karyawan, k.Nama FROM Karyawan k JOIN Dokter d ON k.ID_karyawan = d.ID_karyawan WHERE k.user_id = ?',
+        [user.id]
       );
       if (karyawan.length > 0) {
+        profileId = karyawan[0].ID_karyawan;
         profileName = karyawan[0].Nama;
       }
-    } else if (profileId) {
+    } else {
       // staff_registration, staff_pharmacy, staff_lab, staff_cashier
       // Query tabel Karyawan, Operasional, atau Resepsionis
       const [karyawan] = await db.query<any[]>(
-        'SELECT ID_karyawan, Nama FROM Karyawan WHERE ID_karyawan = ?',
-        [profileId]
+        'SELECT ID_karyawan, Nama FROM Karyawan WHERE user_id = ?',
+        [user.id]
       );
       if (karyawan.length > 0) {
+        profileId = karyawan[0].ID_karyawan;
         profileName = karyawan[0].Nama;
       }
     }

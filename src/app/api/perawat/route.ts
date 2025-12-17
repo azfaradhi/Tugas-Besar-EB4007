@@ -12,23 +12,22 @@ export async function GET(request: NextRequest) {
       SELECT
         p.*,
         k.Nama,
-        k.NIK,
         k.No_telpon,
-        k.Email,
-        k.Alamat
+        k.Alamat,
+        k.Jenis_kelamin
       FROM Perawat p
-      LEFT JOIN Karyawan k ON p.ID_perawat = k.ID_karyawan
+      LEFT JOIN Karyawan k ON p.ID_karyawan = k.ID_karyawan
       WHERE 1=1
     `;
     const params: any[] = [];
 
     if (id) {
-      sql += ' AND p.ID_perawat = ?';
+      sql += ' AND p.ID_karyawan = ?';
       params.push(id);
     }
 
     if (search) {
-      sql += ' AND (k.Nama LIKE ? OR k.NIK LIKE ?)';
+      sql += ' AND (k.Nama LIKE ? OR k.No_telpon LIKE ?)';
       const searchTerm = `%${search}%`;
       params.push(searchTerm, searchTerm);
     }
@@ -58,35 +57,35 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { ID_perawat } = body;
+    const { ID_karyawan, Shift } = body;
 
-    if (!ID_perawat) {
+    if (!ID_karyawan) {
       return NextResponse.json(
-        { error: 'ID_perawat is required' },
+        { error: 'ID_karyawan is required' },
         { status: 400 }
       );
     }
 
     const karyawanExists: any = await query(
-      'SELECT * FROM Karyawan WHERE ID_karyawan = ? AND Role = ?',
-      [ID_perawat, 'staff_nurse']
+      'SELECT * FROM Karyawan WHERE ID_karyawan = ?',
+      [ID_karyawan]
     );
 
     if (!karyawanExists || karyawanExists.length === 0) {
       return NextResponse.json(
-        { error: 'Karyawan with role staff_nurse not found' },
+        { error: 'Karyawan not found' },
         { status: 400 }
       );
     }
 
     await query(
-      'INSERT INTO Perawat (ID_perawat, Nama) VALUES (?, ?)',
-      [ID_perawat, karyawanExists[0].Nama]
+      'INSERT INTO Perawat (ID_karyawan, Shift) VALUES (?, ?)',
+      [ID_karyawan, Shift || 'Pagi']
     );
 
     return NextResponse.json({
       success: true,
-      ID_perawat,
+      ID_karyawan,
       message: 'Perawat created successfully'
     });
   } catch (error: any) {
@@ -112,19 +111,21 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { ID_perawat, Nama } = body;
+    const { ID_karyawan, Shift } = body;
 
-    if (!ID_perawat) {
+    if (!ID_karyawan) {
       return NextResponse.json(
-        { error: 'ID_perawat is required' },
+        { error: 'ID_karyawan is required' },
         { status: 400 }
       );
     }
 
-    await query(
-      'UPDATE Perawat SET Nama = ? WHERE ID_perawat = ?',
-      [Nama, ID_perawat]
-    );
+    if (Shift) {
+      await query(
+        'UPDATE Perawat SET Shift = ? WHERE ID_karyawan = ?',
+        [Shift, ID_karyawan]
+      );
+    }
 
     return NextResponse.json({
       success: true,

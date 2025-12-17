@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { patient_id, device_id, measurement_type, value, unit, measured_at, notes } = body;
+    const { patient_id, measurement_type, value, unit, measured_at, notes } = body;
 
     if (!patient_id || !measurement_type || !value) {
       return NextResponse.json(
@@ -44,7 +44,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-calculate status based on threshold for heart_rate and spo2
     let calculatedStatus = 'normal';
     if (measurement_type === 'heart_rate' || measurement_type === 'spo2') {
       calculatedStatus = checkVitalThreshold(measurement_type, parseFloat(value));
@@ -52,11 +51,10 @@ export async function POST(request: NextRequest) {
 
     await db.query(
       `INSERT INTO wearable_data
-      (patient_id, device_id, measurement_type, value, unit, measured_at, status, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (patient_id, measurement_type, value, unit, measured_at, status, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         patient_id,
-        device_id || 'MAX30102_DEFAULT',
         measurement_type,
         value,
         unit,

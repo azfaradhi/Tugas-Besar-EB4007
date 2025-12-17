@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 
-// GET - Mengambil data dokter
 export async function GET() {
   try {
     const [doctors] = await db.execute(`
       SELECT
         k.ID_karyawan,
         k.Nama,
-        k.NIK,
         k.Tanggal_lahir,
         k.Umur,
         k.Jenis_kelamin,
@@ -17,9 +15,12 @@ export async function GET() {
         d.Spesialis,
         d.STR,
         d.Status,
-        d.Shift
+        d.Shift,
+        d.ID_Department,
+        dep.Nama AS Department_Name
       FROM Dokter d
       JOIN Karyawan k ON d.ID_karyawan = k.ID_karyawan
+      LEFT JOIN Departemen dep ON d.ID_Department = dep.ID_Department
       ORDER BY k.Nama ASC
     `);
 

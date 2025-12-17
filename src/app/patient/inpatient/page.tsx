@@ -23,11 +23,10 @@ type Billing = {
   ID_pasien: string;
   Lunas_date: string | null;
   Jenis_pembayaran: string | null;
-  isLunas: number; // 0/1
+  isLunas: number;
   nama_pasien?: string;
-  NIK?: string;
   sumber?: 'umum' | 'farmasi';
-  total?: number; // opsional kalau endpoint umum kasih nominal
+  total?: number;
 };
 
 type BillingFarmasi = {
@@ -37,9 +36,8 @@ type BillingFarmasi = {
   Total_harga: number | string;
   Lunas_date: string | null;
   Jenis_pembayaran: string | null;
-  isLunas: number; // 0/1
+  isLunas: number;
   nama_pasien?: string;
-  NIK?: string;
 };
 
 export default function InpatientPage() {
@@ -116,7 +114,6 @@ export default function InpatientPage() {
     Jenis_pembayaran: bf.Jenis_pembayaran,
     isLunas: bf.isLunas,
     nama_pasien: bf.nama_pasien,
-    NIK: bf.NIK,
     sumber: 'farmasi',
     total: typeof bf.Total_harga === 'string' ? Number(bf.Total_harga) : bf.Total_harga
   }));
