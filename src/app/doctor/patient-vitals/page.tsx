@@ -45,10 +45,12 @@ export default function DoctorPatientVitalsPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Session state
   const [activeSession, setActiveSession] = useState<MonitoringSession | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [patients, setPatients] = useState<any[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   
   // Real-time data
   const [realtimeData, setRealtimeData] = useState<RealtimeData | null>(null);
@@ -62,6 +64,9 @@ export default function DoctorPatientVitalsPage() {
   // Arduino state
   const [arduinoConnected, setArduinoConnected] = useState(false);
   const [arduinoError, setArduinoError] = useState('');
+
+  // Start session state
+  const [startingSession, setStartingSession] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -93,7 +98,12 @@ export default function DoctorPatientVitalsPage() {
   useEffect(() => {
     setMounted(true);
     fetchInitialData();
-    
+
+    // Poll for active session every 5 seconds
+    pollIntervalRef.current = setInterval(() => {
+      checkForActiveSession();
+    }, 5000);
+
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
@@ -119,7 +129,8 @@ export default function DoctorPatientVitalsPage() {
         router.push('/dashboard');
         return;
       }
-      setUser(data.user);
+      const currentUser = data.user;
+      setUser(currentUser);
 
       // Fetch patients
       const patientsRes = await fetch('/api/patients');
@@ -135,6 +146,31 @@ export default function DoctorPatientVitalsPage() {
         if (sessionData.session) {
           setActiveSession(sessionData.session);
           setSelectedPatient(sessionData.session.patient_id);
+          // Auto-connect to the session with the current user
+          setTimeout(() => {
+            const ws = new WebSocket('ws://localhost:8080');
+            wsRef.current = ws;
+
+            ws.onopen = () => {
+              ws.send(JSON.stringify({
+                type: 'connect',
+                data: {
+                  userId: currentUser.profileId,
+                  role: 'doctor',
+                  sessionId: sessionData.session.session_id
+                }
+              }));
+            };
+
+            ws.onmessage = handleWebSocketMessage;
+            ws.onerror = () => {
+              setError('Gagal terhubung ke server monitoring');
+              setIsConnected(false);
+            };
+            ws.onclose = () => {
+              setIsConnected(false);
+            };
+          }, 500);
         }
       }
 
@@ -173,6 +209,131 @@ export default function DoctorPatientVitalsPage() {
     }
   };
 
+  const handleWebSocketMessage = (event: MessageEvent) => {
+    const msg = JSON.parse(event.data);
+
+    if (msg.type === 'connected') {
+      setIsConnected(true);
+      setError('');
+    }
+
+    if (msg.type === 'arduino_status') {
+      if (msg.status === 'connected' || msg.status === 'ready') {
+        setArduinoConnected(true);
+        setArduinoError('');
+      } else if (msg.status === 'disconnected' || msg.status === 'error') {
+        setArduinoConnected(false);
+      }
+    }
+
+    if (msg.type === 'arduino_error') {
+      setArduinoError(msg.error);
+    }
+
+    if (msg.type === 'vitals') {
+      setRealtimeData(msg.data);
+      // Clear errors when receiving valid data
+      setArduinoError((prev) => prev === 'No finger detected' ? '' : prev);
+
+      // Update chart
+      setChartData(prev => {
+        const newHr = [...prev.hr, msg.data.heart_rate];
+        const newSpo2 = [...prev.spo2, msg.data.spo2];
+        const newLabels = [...prev.labels, formatTime()];
+
+        // Keep only last N data points
+        if (newHr.length > maxDataPoints) {
+          newHr.shift();
+          newSpo2.shift();
+          newLabels.shift();
+        }
+
+        return { hr: newHr, spo2: newSpo2, labels: newLabels };
+      });
+    }
+
+    if (msg.type === 'session_ended') {
+      setActiveSession(null);
+      setIsConnected(false);
+      setRealtimeData(null);
+      setChartData({ hr: [], spo2: [], labels: [] });
+    }
+
+    if (msg.type === 'error') {
+      setError(msg.message);
+    }
+  };
+
+  const handleStartMonitoring = async () => {
+    if (!selectedPatient) {
+      setError('Pilih pasien terlebih dahulu');
+      return;
+    }
+
+    try {
+      setStartingSession(true);
+      setError('');
+
+      const res = await fetch('/api/monitoring/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: selectedPatient,
+          notes: 'Monitoring dimulai oleh dokter'
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Gagal memulai monitoring session');
+      }
+
+      const data = await res.json();
+      setActiveSession(data.session);
+      connectToSession(data.session);
+    } catch (err: any) {
+      console.error('Error starting session:', err);
+      setError(err.message || 'Gagal memulai monitoring session');
+    } finally {
+      setStartingSession(false);
+    }
+  };
+
+  const handleEndMonitoring = async () => {
+    if (!activeSession) return;
+
+    if (!confirm('Akhiri sesi monitoring? Data akan disimpan ke hasil pemeriksaan.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/monitoring/session', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: activeSession.session_id,
+          notes: 'Monitoring diakhiri oleh dokter'
+        })
+      });
+
+      if (res.ok) {
+        if (wsRef.current) {
+          wsRef.current.close();
+        }
+        setActiveSession(null);
+        setIsConnected(false);
+        setRealtimeData(null);
+        setChartData({ hr: [], spo2: [], labels: [] });
+        setSelectedPatient(null);
+      } else {
+        throw new Error('Gagal mengakhiri sesi');
+      }
+    } catch (err) {
+      console.error('Error ending session:', err);
+      setError('Gagal mengakhiri monitoring session');
+    }
+  };
+
   const connectToSession = (session: MonitoringSession) => {
     if (!user) return;
 
@@ -196,68 +357,11 @@ export default function DoctorPatientVitalsPage() {
         }));
       };
 
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-
-        if (msg.type === 'connected') {
-          setIsConnected(true);
-          setError('');
-        }
-
-        if (msg.type === 'arduino_status') {
-          if (msg.status === 'connected' || msg.status === 'ready') {
-            setArduinoConnected(true);
-            setArduinoError('');
-          } else if (msg.status === 'disconnected' || msg.status === 'error') {
-            setArduinoConnected(false);
-          }
-        }
-
-        if (msg.type === 'arduino_error') {
-          setArduinoError(msg.error);
-        }
-
-        if (msg.type === 'vitals') {
-          setRealtimeData(msg.data);
-          // Clear errors when receiving valid data
-          if (arduinoError === 'No finger detected') {
-            setArduinoError('');
-          }
-
-          // Update chart
-          setChartData(prev => {
-            const newHr = [...prev.hr, msg.data.heart_rate];
-            const newSpo2 = [...prev.spo2, msg.data.spo2];
-            const newLabels = [...prev.labels, formatTime()];
-
-            // Keep only last N data points
-            if (newHr.length > maxDataPoints) {
-              newHr.shift();
-              newSpo2.shift();
-              newLabels.shift();
-            }
-
-            return { hr: newHr, spo2: newSpo2, labels: newLabels };
-          });
-        }
-
-        if (msg.type === 'session_ended') {
-          setActiveSession(null);
-          setIsConnected(false);
-          setRealtimeData(null);
-          setChartData({ hr: [], spo2: [], labels: [] });
-        }
-
-        if (msg.type === 'error') {
-          setError(msg.message);
-        }
-      };
-
+      ws.onmessage = handleWebSocketMessage;
       ws.onerror = () => {
         setError('Gagal terhubung ke server monitoring');
         setIsConnected(false);
       };
-
       ws.onclose = () => {
         setIsConnected(false);
       };
@@ -369,18 +473,62 @@ export default function DoctorPatientVitalsPage() {
         )}
 
         {!activeSession ? (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="text-6xl mb-4">⏳</div>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-                Menunggu Pasien Memulai Monitoring
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <div className="max-w-2xl mx-auto">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+                Mulai Monitoring Vital Signs Pasien
               </h2>
-              <p className="text-gray-600">
-                Sesi monitoring akan dimulai otomatis ketika pasien menekan tombol "Mulai Monitoring" di halaman mereka.
-              </p>
-              <p className="text-sm text-blue-600 mt-4">
-                ✓ Status diperbarui setiap 5 detik secara otomatis
-              </p>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pilih Pasien
+                  </label>
+                  <select
+                    value={selectedPatient || ''}
+                    onChange={(e) => setSelectedPatient(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    disabled={startingSession}
+                  >
+                    <option value="">-- Pilih Pasien --</option>
+                    {patients.map((patient) => (
+                      <option key={patient.ID_pasien} value={patient.ID_pasien}>
+                        {patient.Nama} - {patient.ID_pasien} ({patient.Umur} tahun)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">Persiapan Monitoring:</h3>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>✓ Pastikan Arduino & MAX30102 sudah terhubung ke server</li>
+                    <li>✓ Pastikan pasien sudah siap dengan sensor</li>
+                    <li>✓ Data vital signs akan terekam secara real-time</li>
+                  </ul>
+                </div>
+
+                <button
+                  onClick={handleStartMonitoring}
+                  disabled={!selectedPatient || startingSession}
+                  className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+                    selectedPatient && !startingSession
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {startingSession ? 'Memulai Session...' : 'Mulai Monitoring'}
+                </button>
+
+                <div className="text-center pt-4 border-t">
+                  <p className="text-sm text-gray-500">
+                    Atau pasien dapat memulai monitoring sendiri dari halaman mereka
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Status akan diperbarui setiap 5 detik secara otomatis
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -403,8 +551,8 @@ export default function DoctorPatientVitalsPage() {
 
                 <div className="flex items-center gap-3">
                   <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                    isConnected 
-                      ? 'bg-green-50 border-green-200' 
+                    isConnected
+                      ? 'bg-green-50 border-green-200'
                       : 'bg-gray-50 border-gray-200'
                   }`}>
                     <div className={`w-2 h-2 rounded-full ${
@@ -417,9 +565,12 @@ export default function DoctorPatientVitalsPage() {
                     </span>
                   </div>
 
-                  <div className="text-sm text-gray-500 italic">
-                    (Pasien mengendalikan sesi)
-                  </div>
+                  <button
+                    onClick={handleEndMonitoring}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                  >
+                    Akhiri Monitoring
+                  </button>
                 </div>
               </div>
 

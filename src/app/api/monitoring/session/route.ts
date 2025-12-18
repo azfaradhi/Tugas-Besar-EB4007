@@ -91,11 +91,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    
-    if (!user || user.role !== 'doctor') {
+
+    if (!user) {
       return NextResponse.json(
-        { error: 'Only doctors can create monitoring sessions' },
-        { status: 403 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
@@ -135,30 +135,79 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If no appointmentId provided, create a Pertemuan automatically
+    // Determine doctor ID based on who's creating the session
+    let doctorId = user.role === 'doctor' ? user.profileId : null;
+
+    // If no appointmentId provided, find existing scheduled appointment or create new
     let finalAppointmentId = appointmentId;
     if (!finalAppointmentId) {
-      // Generate appointment ID
-      const [countResult] = await db.query<any[]>(
-        'SELECT COUNT(*) as count FROM Pertemuan'
-      );
-      const count = countResult[0].count || 0;
-      finalAppointmentId = `APT${String(count + 1).padStart(4, '0')}`;
-
-      // Get current date and time
       const now = new Date();
-      const tanggal = now.toISOString().split('T')[0]; // YYYY-MM-DD
-      const waktuMulai = now.toTimeString().split(' ')[0]; // HH:MM:SS
+      const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
 
-      // Create Pertemuan
-      await db.query(
-        `INSERT INTO Pertemuan
-         (ID_pertemuan, ID_Pasien, ID_Dokter, Tanggal, Waktu_mulai, status)
-         VALUES (?, ?, ?, ?, ?, 'scheduled')`,
-        [finalAppointmentId, patientId, user.profileId, tanggal, waktuMulai]
+      // First, check if there's already a scheduled Pertemuan for today for this patient
+      const [scheduledAppointments] = await db.query<any[]>(
+        `SELECT ID_pertemuan, ID_Dokter, Waktu_mulai
+         FROM Pertemuan
+         WHERE ID_Pasien = ?
+           AND Tanggal = ?
+           AND status = 'scheduled'
+         ${doctorId ? 'AND ID_Dokter = ?' : ''}
+         ORDER BY Waktu_mulai ASC
+         LIMIT 1`,
+        doctorId ? [patientId, today, doctorId] : [patientId, today]
       );
 
-      console.log(`Auto-created Pertemuan ${finalAppointmentId} for monitoring session`);
+      if (scheduledAppointments.length > 0) {
+        // Use the existing scheduled appointment
+        finalAppointmentId = scheduledAppointments[0].ID_pertemuan;
+        doctorId = scheduledAppointments[0].ID_Dokter; // Use the doctor from the appointment
+        console.log(`Using existing scheduled Pertemuan ${finalAppointmentId} for monitoring session`);
+      } else {
+        // No scheduled appointment found for today
+        if (!doctorId) {
+          // Patient trying to create session without scheduled appointment
+          return NextResponse.json(
+            { error: 'Tidak ada jadwal pertemuan untuk hari ini. Silakan buat janji temu terlebih dahulu.' },
+            { status: 400 }
+          );
+        }
+
+        // Doctor creating session, create a new Pertemuan
+        const [countResult] = await db.query<any[]>(
+          'SELECT COUNT(*) as count FROM Pertemuan'
+        );
+        const count = countResult[0].count || 0;
+        finalAppointmentId = `APT${String(count + 1).padStart(4, '0')}`;
+
+        // Get current time
+        const waktuMulai = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+        // Create Pertemuan
+        await db.query(
+          `INSERT INTO Pertemuan
+           (ID_pertemuan, ID_Pasien, ID_Dokter, Tanggal, Waktu_mulai, status)
+           VALUES (?, ?, ?, ?, ?, 'scheduled')`,
+          [finalAppointmentId, patientId, doctorId, today, waktuMulai]
+        );
+
+        console.log(`Auto-created Pertemuan ${finalAppointmentId} for monitoring session`);
+      }
+    } else {
+      // appointmentId provided, get the doctor from the appointment
+      const [appointment] = await db.query<any[]>(
+        'SELECT ID_Dokter FROM Pertemuan WHERE ID_pertemuan = ?',
+        [finalAppointmentId]
+      );
+      if (appointment.length > 0) {
+        doctorId = appointment[0].ID_Dokter;
+      }
+    }
+
+    if (!doctorId) {
+      return NextResponse.json(
+        { error: 'Doctor information not found' },
+        { status: 400 }
+      );
     }
 
     // Create new session
@@ -168,7 +217,7 @@ export async function POST(request: NextRequest) {
       `INSERT INTO monitoring_sessions
        (session_id, patient_id, doctor_id, appointment_id, notes, status, started_at)
        VALUES (?, ?, ?, ?, ?, 'active', NOW())`,
-      [sessionId, patientId, user.profileId, finalAppointmentId, notes]
+      [sessionId, patientId, doctorId, finalAppointmentId, notes]
     );
 
     const [newSession] = await db.query<any[]>(
@@ -280,37 +329,33 @@ export async function PUT(request: NextRequest) {
       [avgHr, minHr, maxHr, avgSpo2, minSpo2, maxSpo2, hasAnomaly, notes, sessionId]
     );
 
-    // If appointment_id exists, update Hasil_Pemeriksaan
+    // If appointment_id exists, create or update Hasil_Pemeriksaan
     if (session.appointment_id) {
+      const vitalNotes = `--- Vital Signs Monitoring ---\n` +
+        `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
+        `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
+        `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`;
+
       // Check if Hasil_Pemeriksaan exists for this pertemuan
       const [existingResults] = await db.query<any[]>(
-        `SELECT * FROM Hasil_Pemeriksaan WHERE ID_pertemuan = ?`,
+        `SELECT ID_hasil, notes FROM Hasil_Pemeriksaan WHERE ID_pertemuan = ? LIMIT 1`,
         [session.appointment_id]
       );
 
       if (existingResults.length > 0) {
         // Update existing Hasil_Pemeriksaan
         const hasilId = existingResults[0].ID_hasil;
-
-        // Check if notes already contain monitoring data
         const existingNotes = existingResults[0].notes || '';
         let updatedNotes = existingNotes;
 
         // If monitoring section doesn't exist, append it
         if (!existingNotes.includes('--- Vital Signs Monitoring ---')) {
-          updatedNotes = existingNotes +
-            '\n\n--- Vital Signs Monitoring ---\n' +
-            `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
-            `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
-            `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`;
+          updatedNotes = existingNotes ? `${existingNotes}\n\n${vitalNotes}` : vitalNotes;
         } else {
           // Replace existing monitoring section
           updatedNotes = existingNotes.replace(
-            /--- Vital Signs Monitoring ---[\s\S]*?(?=\n\n|$)/,
-            `--- Vital Signs Monitoring ---\n` +
-            `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
-            `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
-            `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`
+            /--- Vital Signs Monitoring ---[\s\S]*?(?=\n\n---|$)/,
+            vitalNotes
           );
         }
 
@@ -324,40 +369,29 @@ export async function PUT(request: NextRequest) {
           [avgHr, avgSpo2, updatedNotes, hasilId]
         );
       } else {
-        // Create new Hasil_Pemeriksaan with unique ID
-        let hasilId;
-        let idExists = true;
-        let attempts = 0;
-
-        // Try to generate unique ID (max 10 attempts)
-        while (idExists && attempts < 10) {
-          hasilId = `HP${Date.now()}${Math.floor(Math.random() * 1000)}`;
-          const [checkId] = await db.query<any[]>(
-            'SELECT ID_hasil FROM Hasil_Pemeriksaan WHERE ID_hasil = ?',
-            [hasilId]
-          );
-          idExists = checkId.length > 0;
-          attempts++;
-          if (idExists) {
-            await new Promise(resolve => setTimeout(resolve, 10)); // Wait 10ms
-          }
-        }
-
-        await db.query(
-          `INSERT INTO Hasil_Pemeriksaan
-           (ID_hasil, ID_pertemuan, detak_jantung, kadar_oksigen, notes, status)
-           VALUES (?, ?, ?, ?, ?, 'completed')`,
-          [
-            hasilId,
-            session.appointment_id,
-            avgHr,
-            avgSpo2,
-            `--- Vital Signs Monitoring ---\n` +
-            `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
-            `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
-            `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`
-          ]
+        // Create new Hasil_Pemeriksaan ONLY if it doesn't exist
+        // Use sequential ID instead of timestamp-based to avoid collisions
+        const [countResult] = await db.query<any[]>(
+          'SELECT COUNT(*) as count FROM Hasil_Pemeriksaan'
         );
+        const count = countResult[0].count || 0;
+        const hasilId = `HSL${String(count + 1).padStart(3, '0')}`;
+
+        // Double-check that this pertemuan still doesn't have a result
+        // (in case of race condition)
+        const [doubleCheck] = await db.query<any[]>(
+          `SELECT ID_hasil FROM Hasil_Pemeriksaan WHERE ID_pertemuan = ? LIMIT 1`,
+          [session.appointment_id]
+        );
+
+        if (doubleCheck.length === 0) {
+          await db.query(
+            `INSERT INTO Hasil_Pemeriksaan
+             (ID_hasil, ID_pertemuan, detak_jantung, kadar_oksigen, notes, status)
+             VALUES (?, ?, ?, ?, ?, 'draft')`,
+            [hasilId, session.appointment_id, avgHr, avgSpo2, vitalNotes]
+          );
+        }
       }
     }
 

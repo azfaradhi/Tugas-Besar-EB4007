@@ -320,9 +320,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (Object.keys(updates).length > 0) {
-      const setParts = Object.keys(updates).map(key => `${key} = ?`);
-      const values = Object.values(updates);
+    // Always mark as completed when doctor submits the form
+    const finalUpdates = { ...updates, status: 'completed' };
+
+    if (Object.keys(finalUpdates).length > 0) {
+      const setParts = Object.keys(finalUpdates).map(key => `${key} = ?`);
+      const values = Object.values(finalUpdates);
 
       await query(
         `UPDATE Hasil_Pemeriksaan SET ${setParts.join(', ')} WHERE ID_hasil = ?`,
@@ -389,6 +392,29 @@ export async function PUT(request: NextRequest) {
           [ID_uji, ID_hasil, ...values]
         );
       }
+    }
+
+    // Update Pertemuan status to completed when doctor submits
+    const hasilData: any = await query(
+      'SELECT ID_pertemuan FROM Hasil_Pemeriksaan WHERE ID_hasil = ?',
+      [ID_hasil]
+    );
+
+    if (hasilData.length > 0) {
+      const ID_pertemuan = hasilData[0].ID_pertemuan;
+      const currentTime = new Date().toLocaleTimeString('en-GB', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      await query(
+        `UPDATE Pertemuan
+         SET status = 'completed', Waktu_selesai = ?
+         WHERE ID_pertemuan = ?`,
+        [currentTime, ID_pertemuan]
+      );
     }
 
     return NextResponse.json({ success: true, message: 'Hasil pemeriksaan updated successfully' });

@@ -92,6 +92,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [wearableData, setWearableData] = useState<any[]>([]);
+  const [existingHasilId, setExistingHasilId] = useState<string | null>(null);
 
   // form state
   const [detakJantung, setDetakJantung] = useState<number>(0);
@@ -151,6 +152,26 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       if (rekamRes.ok) {
         const data = await rekamRes.json();
         setMedicalRecords(data.records || []);
+      }
+
+      // Check if there's already a Hasil_Pemeriksaan for this pertemuan
+      const hasilRes = await fetch(`/api/hasil-pemeriksaan?pertemuanId=${appointmentId}`);
+      if (hasilRes.ok) {
+        const hasilData = await hasilRes.json();
+        if (hasilData.hasil_pemeriksaan && hasilData.hasil_pemeriksaan.length > 0) {
+          const existingHasil = hasilData.hasil_pemeriksaan[0];
+          setExistingHasilId(existingHasil.ID_hasil);
+
+          // Pre-fill form with existing data
+          if (existingHasil.detak_jantung) setDetakJantung(existingHasil.detak_jantung);
+          if (existingHasil.kadar_oksigen) setKadarOksigen(existingHasil.kadar_oksigen);
+          if (existingHasil.symptoms) setSymptoms(existingHasil.symptoms);
+          if (existingHasil.diagnosis) setDiagnosis(existingHasil.diagnosis);
+          if (existingHasil.treatment_plan) setTreatmentPlan(existingHasil.treatment_plan);
+          if (existingHasil.notes) setNotes(existingHasil.notes);
+
+          console.log('Found existing Hasil_Pemeriksaan, pre-filling form:', existingHasil.ID_hasil);
+        }
       }
 
       // obat master
@@ -275,28 +296,46 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         })),
       };
 
-      const res = await fetch('/api/hasil-pemeriksaan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      let res;
+      let result;
+
+      if (existingHasilId) {
+        // Update existing Hasil_Pemeriksaan
+        res = await fetch('/api/hasil-pemeriksaan', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ID_hasil: existingHasilId,
+            ...payload
+          }),
+        });
+      } else {
+        // Create new Hasil_Pemeriksaan
+        res = await fetch('/api/hasil-pemeriksaan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (!res.ok) throw new Error('Gagal simpan pemeriksaan');
-      const result = await res.json();
+      result = await res.json();
 
       // update tabel rekam medis di UI (tanpa reload)
-      setMedicalRecords((prev) => [
-        {
-          ID_hasil: String(result.ID_hasil),
-          diagnosis,
-          symptoms,
-          treatment_plan: treatmentPlan,
-          notes,
-          next_step: nextStep,
-          created_at: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+      if (!existingHasilId) {
+        setMedicalRecords((prev) => [
+          {
+            ID_hasil: String(result.ID_hasil),
+            diagnosis,
+            symptoms,
+            treatment_plan: treatmentPlan,
+            notes,
+            next_step: nextStep,
+            created_at: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+      }
 
       // reset form
       setDiagnosis('');
@@ -307,8 +346,10 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       setLabTestType('');
       setPrescriptionItems([]);
       setDetakJantung(0);
+      setKadarOksigen(0);
+      setExistingHasilId(null);
 
-      alert('Pemeriksaan berhasil disimpan');
+      alert(existingHasilId ? 'Pemeriksaan berhasil diupdate' : 'Pemeriksaan berhasil disimpan');
       // router.push('/dashboard');
     } catch (error) {
       console.error('Error saving examination:', error);

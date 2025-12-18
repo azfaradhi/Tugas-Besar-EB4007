@@ -11,6 +11,7 @@ SET time_zone = '+07:00';
 DROP TABLE IF EXISTS wearable_data;
 DROP TABLE IF EXISTS UrinTest;
 DROP TABLE IF EXISTS Ronsen;
+DROP TABLE IF EXISTS monitoring_sessions;
 DROP TABLE IF EXISTS Hasil_Obat;
 DROP TABLE IF EXISTS Billing_Farmasi;
 DROP TABLE IF EXISTS Hasil_Pemeriksaan;

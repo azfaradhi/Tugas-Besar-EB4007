@@ -536,7 +536,7 @@ async function endSession(sessionId) {
           await db.query(
             `INSERT INTO Hasil_Pemeriksaan
              (ID_hasil, ID_pertemuan, detak_jantung, kadar_oksigen, notes, status)
-             VALUES (?, ?, ?, ?, ?, 'completed')`,
+             VALUES (?, ?, ?, ?, ?, 'draft')`,
             [
               hasilId,
               session.appointment_id,

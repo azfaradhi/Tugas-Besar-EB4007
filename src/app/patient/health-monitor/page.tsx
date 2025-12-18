@@ -415,7 +415,7 @@ export default function HealthMonitorPage() {
                   </ol>
                 </div>
                 <button
-                  onClick={handleConnect}
+                  onClick={handleStartMonitoring}
                   disabled={!arduinoConnected}
                   className={`px-8 py-3 rounded-lg transition-colors text-lg font-medium ${
                     arduinoConnected
