@@ -95,6 +95,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
 
   // form state
   const [detakJantung, setDetakJantung] = useState<number>(0);
+  const [kadarOksigen, setKadarOksigen] = useState<number>(0);
   const [symptoms, setSymptoms] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [treatmentPlan, setTreatmentPlan] = useState('');
@@ -167,12 +168,20 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         setMedications(normalized);
       }
 
-      // wearable (optional)
-      // const wearableRes = await fetch(`/api/wearable?patient_id=${appointmentObj.ID_Pasien}`);
-      // if (wearableRes.ok) {
-      //   const wearable = await wearableRes.json();
-      //   setWearableData(wearable.data || []);
-      // }
+      // Fetch latest monitoring session for this patient
+      const monitoringRes = await fetch(`/api/monitoring/results?patientId=${appointmentObj.ID_Pasien}`);
+      if (monitoringRes.ok) {
+        const monitoringData = await monitoringRes.json();
+        const latestSession = monitoringData.results?.[0];
+        if (latestSession) {
+          // Auto-fill vital signs from latest monitoring session
+          const avgHr = Math.round(latestSession.summary?.heartRate?.average || 0);
+          const avgSpo2 = Math.round(latestSession.summary?.spo2?.average || 0);
+          if (avgHr > 0) setDetakJantung(avgHr);
+          if (avgSpo2 > 0) setKadarOksigen(avgSpo2);
+          console.log('Auto-filled vital signs from monitoring:', { avgHr, avgSpo2 });
+        }
+      }
     } catch (e) {
       console.error('Error:', e);
     } finally {
@@ -252,6 +261,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         diagnosis,
         symptoms,
         detak_jantung: detakJantung,
+        kadar_oksigen: kadarOksigen,
         treatment_plan: finalTreatmentPlan,
         notes,
         status: 'completed',
@@ -386,6 +396,17 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           className="w-full border rounded p-2 mb-4"
           placeholder="Contoh: 72"
           min="0"
+        />
+
+        <label className="block mb-2 font-semibold">Kadar Oksigen (%)</label>
+        <input
+          type="number"
+          value={kadarOksigen}
+          onChange={(e) => setKadarOksigen(parseInt(e.target.value) || 0)}
+          className="w-full border rounded p-2 mb-4"
+          placeholder="Contoh: 98"
+          min="0"
+          max="100"
         />
 
         <label className="block mb-2 font-semibold">Gejala</label>

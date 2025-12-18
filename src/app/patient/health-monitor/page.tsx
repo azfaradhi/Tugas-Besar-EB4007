@@ -38,32 +38,62 @@ export default function HealthMonitorPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Session state
   const [activeSession, setActiveSession] = useState<MonitoringSession | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [realtimeData, setRealtimeData] = useState<RealtimeData | null>(null);
-  
+
+  // Arduino state
+  const [arduinoConnected, setArduinoConnected] = useState(false);
+  const [arduinoStatus, setArduinoStatus] = useState('');
+  const [arduinoError, setArduinoError] = useState('');
+
   // Historical results
   const [pastResults, setPastResults] = useState<MonitoringResult[]>([]);
   const [selectedResult, setSelectedResult] = useState<MonitoringResult | null>(null);
-  
+
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     fetchInitialData();
+    checkArduinoStatus();
+
+    // Poll Arduino status every 3 seconds
+    const intervalId = setInterval(checkArduinoStatus, 3000);
+
+    return () => clearInterval(intervalId);
   }, []);
+
+  const checkArduinoStatus = async () => {
+    try {
+      const res = await fetch('http://localhost:8080/arduino/status');
+      if (res.ok) {
+        const data = await res.json();
+        setArduinoConnected(data.connected && data.isOpen);
+        if (data.connected && data.isOpen) {
+          setArduinoStatus(`Terhubung di ${data.port}`);
+          setArduinoError('');
+        } else {
+          setArduinoStatus('');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking Arduino status:', error);
+      setArduinoConnected(false);
+    }
+  };
 
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      
+
       const res = await fetch('/api/auth/me');
       if (!res.ok) {
         router.push('/login');
         return;
       }
-      
+
       const data = await res.json();
       setUser(data.user);
 
@@ -118,14 +148,42 @@ export default function HealthMonitorPage() {
 
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        
+
         if (msg.type === 'connected') {
           setIsConnected(true);
           setError('');
         }
-        
+
+        if (msg.type === 'arduino_status') {
+          if (msg.status === 'connected' || msg.status === 'ready') {
+            setArduinoConnected(true);
+            setArduinoStatus(msg.message || `Arduino terhubung di ${msg.port}`);
+            setArduinoError('');
+          } else if (msg.status === 'disconnected' || msg.status === 'error') {
+            setArduinoConnected(false);
+            setArduinoStatus('');
+            setArduinoError(msg.message || 'Arduino tidak terhubung');
+          }
+        }
+
+        if (msg.type === 'arduino_error') {
+          setArduinoError(msg.error);
+          // Clear error after showing it for a while if it's "no finger detected"
+          if (msg.error === 'No finger detected') {
+            setTimeout(() => {
+              if (arduinoError === 'No finger detected') {
+                setArduinoError('');
+              }
+            }, 3000);
+          }
+        }
+
         if (msg.type === 'vitals') {
           setRealtimeData(msg.data);
+          // Clear "no finger" error when we receive valid data
+          if (arduinoError === 'No finger detected') {
+            setArduinoError('');
+          }
         }
 
         if (msg.type === 'session_ended') {
@@ -241,6 +299,31 @@ export default function HealthMonitorPage() {
 
             {!isConnected ? (
               <div className="text-center py-8">
+                {/* Arduino Status Indicator */}
+                <div className="mb-6 max-w-md mx-auto">
+                  <div className={`flex items-center justify-center gap-3 p-4 rounded-lg border-2 ${
+                    arduinoConnected
+                      ? 'bg-green-50 border-green-300'
+                      : 'bg-red-50 border-red-300'
+                  }`}>
+                    <div className={`w-3 h-3 rounded-full ${
+                      arduinoConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                    }`}></div>
+                    <div className="text-left flex-1">
+                      <p className={`font-semibold ${
+                        arduinoConnected ? 'text-green-900' : 'text-red-900'
+                      }`}>
+                        {arduinoConnected ? 'Arduino Terhubung' : 'Arduino Tidak Terhubung'}
+                      </p>
+                      <p className={`text-sm ${
+                        arduinoConnected ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        {arduinoStatus || (arduinoConnected ? 'Siap untuk monitoring' : 'Hubungkan Arduino ke server')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="mb-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Cara Memulai Monitoring
@@ -271,13 +354,53 @@ export default function HealthMonitorPage() {
                 </div>
                 <button
                   onClick={handleConnect}
-                  className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
+                  disabled={!arduinoConnected}
+                  className={`px-8 py-3 rounded-lg transition-colors text-lg font-medium ${
+                    arduinoConnected
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={!arduinoConnected ? 'Arduino harus terhubung terlebih dahulu' : ''}
                 >
                   Mulai Monitoring
                 </button>
+                {!arduinoConnected && (
+                  <p className="mt-3 text-sm text-red-600">
+                    Tombol akan aktif setelah Arduino terhubung
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Arduino Error Messages */}
+                {arduinoError && (
+                  <div className={`p-4 rounded-lg border-l-4 ${
+                    arduinoError === 'MAX30102 not found'
+                      ? 'bg-red-50 border-red-500 text-red-800'
+                      : arduinoError === 'No finger detected'
+                      ? 'bg-yellow-50 border-yellow-500 text-yellow-800'
+                      : 'bg-orange-50 border-orange-500 text-orange-800'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <div>
+                        <p className="font-semibold">
+                          {arduinoError === 'MAX30102 not found' && 'Sensor MAX30102 Tidak Terdeteksi'}
+                          {arduinoError === 'No finger detected' && 'Jari Tidak Terdeteksi'}
+                          {arduinoError !== 'MAX30102 not found' && arduinoError !== 'No finger detected' && 'Peringatan Arduino'}
+                        </p>
+                        <p className="text-sm mt-1">
+                          {arduinoError === 'MAX30102 not found' && 'Pastikan sensor MAX30102 terhubung dengan benar ke Arduino (SDA → A4, SCL → A5, VIN → 5V, GND → GND)'}
+                          {arduinoError === 'No finger detected' && 'Letakkan jari Anda pada sensor MAX30102 untuk memulai pengukuran'}
+                          {arduinoError !== 'MAX30102 not found' && arduinoError !== 'No finger detected' && arduinoError}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className={`rounded-xl shadow-lg p-8 border-l-4 ${
                     realtimeData ? getStatusColor(realtimeData.hr_status) : 'border-gray-300'

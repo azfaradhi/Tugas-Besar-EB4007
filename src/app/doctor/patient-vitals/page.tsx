@@ -64,11 +64,40 @@ export default function DoctorPatientVitalsPage() {
     spo2: [],
     labels: []
   });
-  
+  const [mounted, setMounted] = useState(false);
+
+  // Arduino state
+  const [arduinoConnected, setArduinoConnected] = useState(false);
+  const [arduinoError, setArduinoError] = useState('');
+
   const wsRef = useRef<WebSocket | null>(null);
   const maxDataPoints = 30;
 
+  // Helper function to format date consistently on client side
+  const formatDateTime = (dateString: string) => {
+    if (!mounted) return '';
+    const date = new Date(dateString);
+    return date.toLocaleString('id-ID', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  const formatTime = () => {
+    const now = new Date();
+    return now.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
   useEffect(() => {
+    setMounted(true);
     fetchInitialData();
   }, []);
 
@@ -93,7 +122,7 @@ export default function DoctorPatientVitalsPage() {
       const patientsRes = await fetch('/api/patients');
       if (patientsRes.ok) {
         const patientsData = await patientsRes.json();
-        setPatients(patientsData || []);
+        setPatients(patientsData.patients || []);
       }
 
       // Check for active session
@@ -169,24 +198,37 @@ export default function DoctorPatientVitalsPage() {
 
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        
+
         if (msg.type === 'connected') {
           setIsConnected(true);
           setError('');
         }
-        
+
+        if (msg.type === 'arduino_status') {
+          if (msg.status === 'connected' || msg.status === 'ready') {
+            setArduinoConnected(true);
+            setArduinoError('');
+          } else if (msg.status === 'disconnected' || msg.status === 'error') {
+            setArduinoConnected(false);
+          }
+        }
+
+        if (msg.type === 'arduino_error') {
+          setArduinoError(msg.error);
+        }
+
         if (msg.type === 'vitals') {
           setRealtimeData(msg.data);
-          
+          // Clear errors when receiving valid data
+          if (arduinoError === 'No finger detected') {
+            setArduinoError('');
+          }
+
           // Update chart
           setChartData(prev => {
             const newHr = [...prev.hr, msg.data.heart_rate];
             const newSpo2 = [...prev.spo2, msg.data.spo2];
-            const newLabels = [...prev.labels, new Date().toLocaleTimeString('id-ID', {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit'
-            })];
+            const newLabels = [...prev.labels, formatTime()];
 
             // Keep only last N data points
             if (newHr.length > maxDataPoints) {
@@ -407,9 +449,11 @@ export default function DoctorPatientVitalsPage() {
                   <p className="text-sm text-gray-600 mt-1">
                     Pasien: {activeSession.patient_name}
                   </p>
-                  <p className="text-xs text-gray-500">
-                    Dimulai: {new Date(activeSession.started_at).toLocaleString('id-ID')}
-                  </p>
+                  {mounted && (
+                    <p className="text-xs text-gray-500">
+                      Dimulai: {formatDateTime(activeSession.started_at)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -446,44 +490,73 @@ export default function DoctorPatientVitalsPage() {
                 </div>
               </div>
 
-              {isConnected && realtimeData && (
+              {isConnected && (
                 <div className="mt-6 space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
+                  {/* Arduino Error Messages */}
+                  {arduinoError && (
+                    <div className={`p-4 rounded-lg border-l-4 ${
+                      arduinoError === 'MAX30102 not found'
+                        ? 'bg-red-50 border-red-500 text-red-800'
+                        : arduinoError === 'No finger detected'
+                        ? 'bg-yellow-50 border-yellow-500 text-yellow-800'
+                        : 'bg-orange-50 border-orange-500 text-orange-800'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
                         <div>
-                          <p className="text-sm text-gray-600">Heart Rate</p>
-                          <p className="text-4xl font-bold text-gray-900 mt-1">
-                            {realtimeData.heart_rate}
-                            <span className="text-lg text-gray-500 ml-1">bpm</span>
+                          <p className="font-semibold">
+                            {arduinoError === 'MAX30102 not found' && 'Sensor MAX30102 Tidak Terdeteksi'}
+                            {arduinoError === 'No finger detected' && 'Jari Pasien Tidak Terdeteksi'}
+                            {arduinoError !== 'MAX30102 not found' && arduinoError !== 'No finger detected' && 'Peringatan Arduino'}
+                          </p>
+                          <p className="text-sm mt-1">
+                            {arduinoError === 'MAX30102 not found' && 'Sensor tidak terhubung dengan benar ke Arduino'}
+                            {arduinoError === 'No finger detected' && 'Minta pasien untuk meletakkan jari pada sensor'}
+                            {arduinoError !== 'MAX30102 not found' && arduinoError !== 'No finger detected' && arduinoError}
                           </p>
                         </div>
-                        <div className={`w-3 h-3 rounded-full ${getStatusColor(realtimeData.hr_status)}`}></div>
                       </div>
                     </div>
+                  )}
 
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-gray-600">SpO2</p>
-                          <p className="text-4xl font-bold text-gray-900 mt-1">
-                            {realtimeData.spo2}
-                            <span className="text-lg text-gray-500 ml-1">%</span>
-                          </p>
+                  {realtimeData && (
+                  <><div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Heart Rate</p>
+                              <p className="text-4xl font-bold text-gray-900 mt-1">
+                                {realtimeData.heart_rate}
+                                <span className="text-lg text-gray-500 ml-1">bpm</span>
+                              </p>
+                            </div>
+                            <div className={`w-3 h-3 rounded-full ${getStatusColor(realtimeData.hr_status)}`}></div>
+                          </div>
                         </div>
-                        <div className={`w-3 h-3 rounded-full ${getStatusColor(realtimeData.spo2_status)}`}></div>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                      Grafik Real-time (30 detik terakhir)
-                    </h3>
-                    <div style={{ height: '300px' }}>
-                      <Line options={chartOptions} data={chartDataConfig} />
-                    </div>
-                  </div>
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">SpO2</p>
+                              <p className="text-4xl font-bold text-gray-900 mt-1">
+                                {realtimeData.spo2}
+                                <span className="text-lg text-gray-500 ml-1">%</span>
+                              </p>
+                            </div>
+                            <div className={`w-3 h-3 rounded-full ${getStatusColor(realtimeData.spo2_status)}`}></div>
+                          </div>
+                        </div>
+                      </div><div className="bg-white border border-gray-200 rounded-lg p-4">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            Grafik Real-time (30 detik terakhir)
+                          </h3>
+                          <div style={{ height: '300px' }}>
+                            <Line options={chartOptions} data={chartDataConfig} />
+                          </div>
+                        </div></>
+                  )}
                 </div>
               )}
             </div>

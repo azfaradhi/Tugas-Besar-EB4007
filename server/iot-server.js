@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -36,33 +38,84 @@ const dataBuffers = new Map();
 // Serial port configuration
 let serialPort = null;
 let parser = null;
+let arduinoConnected = false;
+let arduinoPort = null;
 
 // Initialize Arduino Serial Connection
 function initArduino(portPath) {
-  try {
-    serialPort = new SerialPort({
-      path: portPath,
-      baudRate: 9600,
-      autoOpen: false
-    });
-
-    parser = serialPort.pipe(new ReadlineParser({ delimiter: '\n' }));
-
-    serialPort.open((err) => {
-      if (err) {
-        console.error('Error opening serial port:', err.message);
-        return;
+  return new Promise((resolve, reject) => {
+    // Timeout after 1 second
+    const timeout = setTimeout(() => {
+      if (serialPort && !serialPort.isOpen) {
+        serialPort.destroy();
+        reject(new Error('Connection timeout'));
       }
-      console.log(`Serial port ${portPath} opened successfully`);
-    });
+    }, 1000);
+
+    try {
+      serialPort = new SerialPort({
+        path: portPath,
+        baudRate: 9600,
+        autoOpen: false
+      });
+
+      parser = serialPort.pipe(new ReadlineParser({ delimiter: '\n' }));
+
+      serialPort.open((err) => {
+        clearTimeout(timeout);
+        if (err) {
+          reject(err);
+          return;
+        }
+        arduinoConnected = true;
+        arduinoPort = portPath;
+        console.log(`✓ Arduino connected on ${portPath}`);
+
+        // Broadcast Arduino connected status to all clients
+        broadcastToAll({
+          type: 'arduino_status',
+          status: 'connected',
+          port: portPath
+        });
+
+        resolve();
+      });
 
     parser.on('data', async (line) => {
       try {
         const data = JSON.parse(line.trim());
-        
-        if (!data.heart_rate || !data.spo2) {
+
+        // Log all incoming data for debugging
+        console.log('Arduino data:', line.trim());
+
+        // Handle Arduino status messages
+        if (data.status === 'ready') {
+          console.log('Arduino MAX30102 sensor ready');
+          broadcastToAll({
+            type: 'arduino_status',
+            status: 'ready',
+            message: 'MAX30102 sensor initialized'
+          });
           return;
         }
+
+        // Handle error messages from Arduino
+        if (data.error) {
+          console.log('Arduino error:', data.error);
+          broadcastToAll({
+            type: 'arduino_error',
+            error: data.error
+          });
+          return;
+        }
+
+        // Skip if no valid vitals data (check for undefined/null, not 0)
+        if (data.heart_rate === undefined || data.spo2 === undefined) {
+          return;
+        }
+
+        // Log valid vitals data
+        console.log(`Vitals - HR: ${data.heart_rate} bpm, SpO2: ${data.spo2}%`);
 
         // Broadcast to all active sessions
         for (const [sessionId, session] of activeSessions.entries()) {
@@ -94,11 +147,29 @@ function initArduino(portPath) {
 
     serialPort.on('error', (err) => {
       console.error('Serial port error:', err.message);
+      arduinoConnected = false;
+      arduinoPort = null;
+      broadcastToAll({
+        type: 'arduino_status',
+        status: 'error',
+        message: err.message
+      });
     });
 
-  } catch (err) {
-    console.error('Error initializing Arduino:', err.message);
-  }
+    serialPort.on('close', () => {
+      console.log('Arduino disconnected');
+      arduinoConnected = false;
+      arduinoPort = null;
+      broadcastToAll({
+        type: 'arduino_status',
+        status: 'disconnected'
+      });
+    });
+
+    } catch (err) {
+      reject(err);
+    }
+  });
 }
 
 // Get vital sign status
@@ -205,6 +276,13 @@ wss.on('connection', async (ws, req) => {
           message: 'Successfully connected to monitoring session'
         }));
 
+        // Send current Arduino status to newly connected client
+        ws.send(JSON.stringify({
+          type: 'arduino_status',
+          status: arduinoConnected ? 'connected' : 'disconnected',
+          port: arduinoPort
+        }));
+
         console.log(`User ${userId} (${role}) connected to session ${sessionId}`);
       }
 
@@ -294,39 +372,71 @@ async function validateSession(sessionId, userId, role) {
 // End monitoring session
 async function endSession(sessionId) {
   try {
+    console.log(`\n=== ENDING SESSION ${sessionId} ===`);
+
     // Save any remaining buffered data
     const buffer = dataBuffers.get(sessionId);
     if (buffer && buffer.data.length > 0) {
+      console.log(`Saving ${buffer.data.length} buffered data points...`);
       await saveAggregatedData(sessionId, buffer.data);
     }
 
+    // Get session info first
+    const [sessions] = await db.query(
+      `SELECT * FROM monitoring_sessions WHERE session_id = ?`,
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      console.error(`Session ${sessionId} not found!`);
+      return;
+    }
+
+    const session = sessions[0];
+    console.log(`Session info:`, {
+      patient_id: session.patient_id,
+      doctor_id: session.doctor_id,
+      appointment_id: session.appointment_id
+    });
+
     // Calculate summary statistics
     const [hrData] = await db.query(
-      `SELECT 
+      `SELECT
         AVG(value) as avg_val,
         MIN(value) as min_val,
         MAX(value) as max_val,
+        COUNT(*) as count,
         SUM(CASE WHEN status IN ('warning', 'critical') THEN 1 ELSE 0 END) as anomaly_count
-       FROM wearable_data 
+       FROM wearable_data
        WHERE session_id = ? AND measurement_type = 'heart_rate'`,
       [sessionId]
     );
 
     const [spo2Data] = await db.query(
-      `SELECT 
+      `SELECT
         AVG(value) as avg_val,
         MIN(value) as min_val,
-        MAX(value) as max_val
-       FROM wearable_data 
+        MAX(value) as max_val,
+        COUNT(*) as count
+       FROM wearable_data
        WHERE session_id = ? AND measurement_type = 'spo2'`,
       [sessionId]
     );
 
+    console.log(`Heart Rate Data:`, hrData[0]);
+    console.log(`SpO2 Data:`, spo2Data[0]);
+
     const hasAnomaly = (hrData[0]?.anomaly_count || 0) > 0;
+    const avgHr = hrData[0]?.avg_val || null;
+    const minHr = hrData[0]?.min_val || null;
+    const maxHr = hrData[0]?.max_val || null;
+    const avgSpo2 = spo2Data[0]?.avg_val || null;
+    const minSpo2 = spo2Data[0]?.min_val || null;
+    const maxSpo2 = spo2Data[0]?.max_val || null;
 
     // Update session with summary
-    await db.query(
-      `UPDATE monitoring_sessions 
+    const [updateResult] = await db.query(
+      `UPDATE monitoring_sessions
        SET status = 'completed',
            ended_at = NOW(),
            avg_heart_rate = ?,
@@ -337,19 +447,117 @@ async function endSession(sessionId) {
            max_spo2 = ?,
            has_anomaly = ?
        WHERE session_id = ?`,
-      [
-        hrData[0]?.avg_val,
-        hrData[0]?.min_val,
-        hrData[0]?.max_val,
-        spo2Data[0]?.avg_val,
-        spo2Data[0]?.min_val,
-        spo2Data[0]?.max_val,
-        hasAnomaly,
-        sessionId
-      ]
+      [avgHr, minHr, maxHr, avgSpo2, minSpo2, maxSpo2, hasAnomaly, sessionId]
     );
 
-    console.log(`Session ${sessionId} ended successfully`);
+    console.log(`Updated monitoring_sessions:`, {
+      affectedRows: updateResult.affectedRows,
+      avgHr, minHr, maxHr, avgSpo2, minSpo2, maxSpo2, hasAnomaly
+    });
+
+    // If appointment_id exists, update Hasil_Pemeriksaan
+    if (session.appointment_id) {
+      console.log(`Looking for examination result with appointment_id: ${session.appointment_id}`);
+
+      // Check if Hasil_Pemeriksaan exists for this pertemuan
+      const [pertemuan] = await db.query(
+        `SELECT * FROM Pertemuan WHERE ID_pertemuan = ?`,
+        [session.appointment_id]
+      );
+
+      if (pertemuan.length > 0) {
+        console.log(`Found Pertemuan:`, pertemuan[0]);
+
+        // Check if Hasil_Pemeriksaan already exists
+        const [existingResults] = await db.query(
+          `SELECT * FROM Hasil_Pemeriksaan WHERE ID_pertemuan = ?`,
+          [session.appointment_id]
+        );
+
+        if (existingResults.length > 0) {
+          // Update existing Hasil_Pemeriksaan
+          const hasilId = existingResults[0].ID_hasil;
+          console.log(`Updating existing Hasil_Pemeriksaan: ${hasilId}`);
+
+          // Check if notes already contain monitoring data
+          const existingNotes = existingResults[0].notes || '';
+          let updatedNotes = existingNotes;
+
+          // If monitoring section doesn't exist, append it
+          if (!existingNotes.includes('--- Vital Signs Monitoring ---')) {
+            updatedNotes = existingNotes +
+              '\n\n--- Vital Signs Monitoring ---\n' +
+              `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
+              `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
+              `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`;
+          } else {
+            // Replace existing monitoring section
+            updatedNotes = existingNotes.replace(
+              /--- Vital Signs Monitoring ---[\s\S]*?(?=\n\n|$)/,
+              `--- Vital Signs Monitoring ---\n` +
+              `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
+              `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
+              `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`
+            );
+          }
+
+          await db.query(
+            `UPDATE Hasil_Pemeriksaan
+             SET detak_jantung = ?,
+                 kadar_oksigen = ?,
+                 notes = ?,
+                 updated_at = NOW()
+             WHERE ID_hasil = ?`,
+            [avgHr, avgSpo2, updatedNotes, hasilId]
+          );
+          console.log(`Hasil_Pemeriksaan updated successfully`);
+        } else {
+          // Create new Hasil_Pemeriksaan with unique ID
+          let hasilId;
+          let idExists = true;
+          let attempts = 0;
+
+          // Try to generate unique ID (max 10 attempts)
+          while (idExists && attempts < 10) {
+            hasilId = `HP${Date.now()}${Math.floor(Math.random() * 1000)}`;
+            const [checkId] = await db.query(
+              'SELECT ID_hasil FROM Hasil_Pemeriksaan WHERE ID_hasil = ?',
+              [hasilId]
+            );
+            idExists = checkId.length > 0;
+            attempts++;
+            if (idExists) {
+              await new Promise(resolve => setTimeout(resolve, 10)); // Wait 10ms
+            }
+          }
+
+          console.log(`Creating new Hasil_Pemeriksaan: ${hasilId}`);
+
+          await db.query(
+            `INSERT INTO Hasil_Pemeriksaan
+             (ID_hasil, ID_pertemuan, detak_jantung, kadar_oksigen, notes, status)
+             VALUES (?, ?, ?, ?, ?, 'completed')`,
+            [
+              hasilId,
+              session.appointment_id,
+              avgHr,
+              avgSpo2,
+              `--- Vital Signs Monitoring ---\n` +
+              `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
+              `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
+              `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`
+            ]
+          );
+          console.log(`Hasil_Pemeriksaan created successfully`);
+        }
+      } else {
+        console.log(`No Pertemuan found with ID: ${session.appointment_id}`);
+      }
+    } else {
+      console.log(`No appointment_id linked to this session`);
+    }
+
+    console.log(`=== SESSION ${sessionId} ENDED SUCCESSFULLY ===\n`);
   } catch (err) {
     console.error('Error ending session:', err);
   }
@@ -364,13 +572,33 @@ function broadcastToSession(sessionId, message) {
   }
 }
 
+// Broadcast message to all connected clients
+function broadcastToAll(message) {
+  for (const [ws, clientInfo] of clients.entries()) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(message));
+    }
+  }
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     activeSessions: activeSessions.size,
     connectedClients: clients.size,
-    serialPortOpen: serialPort?.isOpen || false
+    serialPortOpen: serialPort?.isOpen || false,
+    arduinoConnected: arduinoConnected,
+    arduinoPort: arduinoPort
+  });
+});
+
+// Arduino status endpoint
+app.get('/arduino/status', (req, res) => {
+  res.json({
+    connected: arduinoConnected,
+    port: arduinoPort,
+    isOpen: serialPort?.isOpen || false
   });
 });
 
@@ -381,23 +609,33 @@ server.listen(PORT, () => {
   console.log(`IoT Server running on port ${PORT}`);
   
   // Try to initialize Arduino
-  // Common USB serial ports for Arduino Uno on macOS
-  const possiblePorts = [
-    '/dev/tty.usbserial-1410',
-    '/dev/tty.usbmodem14101',
-    '/dev/cu.usbserial-1410',
-    '/dev/cu.usbmodem14101'
-  ];
+  // Only check COM12 as specified
+  const possiblePorts = ['COM12'];
 
   // Try each port
-  for (const port of possiblePorts) {
-    try {
-      initArduino(port);
-      break;
-    } catch (err) {
-      console.log(`Could not open ${port}, trying next...`);
+  console.log('Attempting to connect to Arduino...');
+  let connected = false;
+
+  (async () => {
+    for (const port of possiblePorts) {
+      try {
+        console.log(`Trying port: ${port}`);
+        await initArduino(port);
+        connected = true;
+        break;
+      } catch (err) {
+        // Continue to next port
+      }
     }
-  }
+
+    if (!connected) {
+      console.log('⚠ No Arduino found. Server will continue running without serial connection.');
+      console.log('To connect Arduino:');
+      console.log('1. Connect Arduino via USB');
+      console.log('2. Check COM port in Device Manager (Windows) or ls /dev/tty* (Mac/Linux)');
+      console.log('3. Restart this server');
+    }
+  })();
 });
 
 // Graceful shutdown

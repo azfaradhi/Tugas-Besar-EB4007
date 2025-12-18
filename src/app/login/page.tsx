@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import ReCAPTCHA from 'react-google-recaptcha';
+// import ReCAPTCHA from 'react-google-recaptcha';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const recaptchaRef = useRef<ReCAPTCHA>(null);
+  // const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,12 +19,12 @@ export default function LoginPage() {
     setLoading(true);
 
     // Verify reCAPTCHA
-    const recaptchaValue = recaptchaRef.current?.getValue();
-    if (!recaptchaValue) {
-      setError('Mohon verifikasi bahwa Anda bukan robot');
-      setLoading(false);
-      return;
-    }
+    // const recaptchaValue = recaptchaRef.current?.getValue();
+    // if (!recaptchaValue) {
+    //   setError('Mohon verifikasi bahwa Anda bukan robot');
+    //   setLoading(false);
+    //   return;
+    // }
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -32,10 +32,10 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          username, 
+        body: JSON.stringify({
+          username,
           password,
-          recaptchaToken: recaptchaValue 
+          // recaptchaToken: recaptchaValue
         }),
       });
 
@@ -44,7 +44,7 @@ export default function LoginPage() {
       if (!response.ok) {
         setError(data.error || 'Login gagal');
         setLoading(false);
-        recaptchaRef.current?.reset();
+        // recaptchaRef.current?.reset();
         return;
       }
 
@@ -53,7 +53,7 @@ export default function LoginPage() {
     } catch (err) {
       setError('Terjadi kesalahan. Silakan coba lagi.');
       setLoading(false);
-      recaptchaRef.current?.reset();
+      // recaptchaRef.current?.reset();
     }
   };
 
@@ -110,13 +110,13 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="flex justify-center my-4">
+          {/* <div className="flex justify-center my-4">
             <ReCAPTCHA
               ref={recaptchaRef}
               sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'}
               theme="light"
             />
-          </div>
+          </div> */}
 
           <div>
             <button

@@ -214,6 +214,7 @@ CREATE TABLE Hasil_Pemeriksaan (
     diagnosis TEXT,
     symptoms TEXT,
     detak_jantung INT,
+    kadar_oksigen DECIMAL(5,2),
     treatment_plan TEXT,
     notes TEXT,
     status ENUM('draft','completed') DEFAULT 'completed',
@@ -349,3 +350,26 @@ CREATE TABLE wearable_data (
 -- ================================================================================
 -- END OF SCHEMA
 -- ================================================================================
+
+
+-- Migration: Add kadar_oksigen column to Hasil_Pemeriksaan table
+-- Date: 2025-12-18
+
+-- Check if column exists before adding
+SET @dbname = DATABASE();
+SET @tablename = "Hasil_Pemeriksaan";
+SET @columnname = "kadar_oksigen";
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (table_name = @tablename)
+      AND (table_schema = @dbname)
+      AND (column_name = @columnname)
+  ) > 0,
+  "SELECT 1",
+  CONCAT("ALTER TABLE ", @tablename, " ADD ", @columnname, " DECIMAL(5,2) AFTER detak_jantung")
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
