@@ -27,7 +27,7 @@ interface Pertemuan {
   Waktu_mulai: string;
   Waktu_selesai: string | null;
   nama_pasien: string;
-  nama_dokter: string;
+  doctor_name: string;
   Spesialis: string;
 }
 
@@ -264,7 +264,7 @@ export default function RegistrationDashboard({ user }: RegistrationDashboardPro
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900">{pertemuan.nama_pasien}</p>
-                        <p className="text-sm text-gray-600">Dokter: {pertemuan.nama_dokter}</p>
+                        <p className="text-sm text-gray-600">Dokter: {pertemuan.doctor_name}</p>
                         <p className="text-sm text-gray-600">{pertemuan.Spesialis}</p>
                       </div>
                       {pertemuan.Waktu_selesai ? (
