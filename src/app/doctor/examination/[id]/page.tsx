@@ -332,36 +332,11 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       if (!res.ok) throw new Error('Gagal simpan pemeriksaan');
       result = await res.json();
 
-      // update tabel rekam medis di UI (tanpa reload)
-      if (!existingHasilId) {
-        setMedicalRecords((prev) => [
-          {
-            ID_hasil: String(result.ID_hasil),
-            diagnosis,
-            symptoms,
-            treatment_plan: treatmentPlan,
-            notes,
-            next_step: nextStep,
-            created_at: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
-      }
-
-      // reset form
-      setDiagnosis('');
-      setSymptoms('');
-      setTreatmentPlan('');
-      setNotes('');
-      setNextStep('Rawat Jalan');
-      setLabTestType('');
-      setPrescriptionItems([]);
-      setDetakJantung(0);
-      setKadarOksigen(0);
-      setExistingHasilId(null);
-
+      // Show success message
       alert(existingHasilId ? 'Pemeriksaan berhasil diupdate' : 'Pemeriksaan berhasil disimpan');
-      // router.push('/dashboard');
+      
+      // Redirect to dashboard
+      router.push('/dashboard');
     } catch (error) {
       console.error('Error saving examination:', error);
       alert('Gagal menyimpan pemeriksaan');
