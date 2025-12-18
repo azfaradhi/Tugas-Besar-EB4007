@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN Ruangan r  ON r.ID_ruangan    = p.ID_ruangan
       LEFT JOIN Gedung g   ON g.ID_gedung     = r.ID_gedung
       WHERE p.ID_Pasien = ?
+      AND treatment_plan = 'Rawat Inap'
       ORDER BY p.Tanggal DESC, p.Waktu_mulai DESC
       `,
       [patientId]
