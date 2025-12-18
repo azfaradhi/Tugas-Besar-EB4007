@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
       `
       SELECT
         p.ID_pertemuan,
+        p.ID_Pasien,
+        pas.Nama AS NamaPasien,
         p.Tanggal,
         p.Waktu_mulai,
         p.Waktu_selesai,
@@ -35,18 +37,28 @@ export async function GET(req: NextRequest) {
         p.ID_ruangan,
         r.Lantai,
         g.Nama AS GedungNama,
-        k.Nama AS DokterNama,
-        kp.Nama AS PerawatNama
-      FROM Pertemuan p
-      JOIN Dokter d        ON d.ID_karyawan   = p.ID_Dokter
-      JOIN Karyawan k      ON k.ID_karyawan   = d.ID_karyawan
-      LEFT JOIN Perawat pr ON pr.ID_karyawan  = p.ID_Perawat
-      LEFT JOIN Karyawan kp ON kp.ID_karyawan = pr.ID_karyawan
-      LEFT JOIN Ruangan r  ON r.ID_ruangan    = p.ID_ruangan
-      LEFT JOIN Gedung g   ON g.ID_gedung     = r.ID_gedung
+        d.ID_karyawan AS ID_Dokter,
+        kd.Nama AS DokterNama,
+        d.Spesialis,
+        p.ID_Perawat,
+        kp.Nama AS PerawatNama,
+        hp.ID_hasil,
+        hp.treatment_plan,
+        hp.diagnosis,
+        hp.notes,
+        hp.created_at AS hasil_created_at
+      FROM Hasil_Pemeriksaan hp
+      JOIN Pertemuan p        ON p.ID_pertemuan = hp.ID_pertemuan
+      JOIN Pasien pas         ON pas.ID_pasien  = p.ID_Pasien
+      JOIN Dokter d           ON d.ID_karyawan  = p.ID_Dokter
+      JOIN Karyawan kd        ON kd.ID_karyawan = d.ID_karyawan
+      LEFT JOIN Perawat pr    ON pr.ID_karyawan = p.ID_Perawat
+      LEFT JOIN Karyawan kp   ON kp.ID_karyawan = pr.ID_karyawan
+      LEFT JOIN Ruangan r     ON r.ID_ruangan   = p.ID_ruangan
+      LEFT JOIN Gedung g      ON g.ID_gedung    = r.ID_gedung
       WHERE p.ID_Pasien = ?
-      AND treatment_plan = 'Rawat Inap'
-      ORDER BY p.Tanggal DESC, p.Waktu_mulai DESC
+        AND LOWER(TRIM(hp.treatment_plan)) = 'rawat inap'
+      ORDER BY p.Tanggal DESC, p.Waktu_mulai DESC;
       `,
       [patientId]
     );
