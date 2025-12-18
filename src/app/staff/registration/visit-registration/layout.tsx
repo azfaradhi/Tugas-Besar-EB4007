@@ -1,7 +1,9 @@
-export default function VisitRegistrationLayout({
+import DashboardLayout from '@/components/DashboardLayout';
+
+export default function ExaminationLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return <DashboardLayout>{children}</DashboardLayout>;
 }
