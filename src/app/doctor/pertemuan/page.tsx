@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface Appointment {
-  ID_pertemuan: number;
-  ID_Pasien: number;
+  ID_jadwal: string;
+  ID_pasien: string;
   Tanggal: string;
+  Date: string;
   Waktu_mulai: string;
+  Waktu_selesai: string | null;
   status: 'scheduled' | 'completed' | 'cancelled';
   patient_name: string;
 }
@@ -23,10 +25,10 @@ export default function PertemuanPage() {
 
   const fetchData = async () => {
     try {
-      const res = await fetch('/api/pertemuan');
+      const res = await fetch('/api/jadwal-praktik');
       if (res.ok) {
         const data = await res.json();
-        setAppointments(data.pertemuans || []);
+        setAppointments(data.jadwals || []);
       }
     } catch (err) {
       console.error(err);
@@ -38,9 +40,15 @@ export default function PertemuanPage() {
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-  const pastAppointments = appointments.filter(a => a.Tanggal < todayStr);
-  const todayAppointments = appointments.filter(a => a.Tanggal === todayStr);
-  const upcomingAppointments = appointments.filter(a => a.Tanggal > todayStr);
+  // Extract date from Tanggal field (ISO format)
+  const getDateString = (tanggal: string) => {
+    const date = new Date(tanggal);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const pastAppointments = appointments.filter(a => getDateString(a.Tanggal) < todayStr);
+  const todayAppointments = appointments.filter(a => getDateString(a.Tanggal) === todayStr);
+  const upcomingAppointments = appointments.filter(a => getDateString(a.Tanggal) > todayStr);
 
   const displayed =
     activeTab === 'today'
@@ -88,17 +96,16 @@ export default function PertemuanPage() {
         ) : (
           <div className="space-y-4">
             {displayed.map(apt => {
-              const [y, m, d] = apt.Tanggal.split('-').map(Number);
-              const displayDate = new Date(y, m - 1, d);
+              const displayDate = new Date(apt.Tanggal);
 
               return (
                 <div
-                  key={apt.ID_pertemuan}
+                  key={apt.ID_jadwal}
                   className="bg-white border border-slate-200 rounded-lg p-5 hover:shadow-md transition"
                 >
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm text-slate-500">
-                      #{apt.ID_pertemuan}
+                      #{apt.ID_jadwal}
                     </span>
 
                     {apt.status === 'completed' && (

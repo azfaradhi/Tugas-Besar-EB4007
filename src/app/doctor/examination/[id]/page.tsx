@@ -155,6 +155,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
       }
 
       // Check if there's already a Hasil_Pemeriksaan for this pertemuan
+      let hasExistingVitals = false;
       const hasilRes = await fetch(`/api/hasil-pemeriksaan?pertemuanId=${appointmentId}`);
       if (hasilRes.ok) {
         const hasilData = await hasilRes.json();
@@ -163,8 +164,14 @@ export default function ExaminationPage(_: ExaminationPageProps) {
           setExistingHasilId(existingHasil.ID_hasil);
 
           // Pre-fill form with existing data
-          if (existingHasil.detak_jantung) setDetakJantung(existingHasil.detak_jantung);
-          if (existingHasil.kadar_oksigen) setKadarOksigen(existingHasil.kadar_oksigen);
+          if (existingHasil.detak_jantung) {
+            setDetakJantung(existingHasil.detak_jantung);
+            hasExistingVitals = true;
+          }
+          if (existingHasil.kadar_oksigen) {
+            setKadarOksigen(existingHasil.kadar_oksigen);
+            hasExistingVitals = true;
+          }
           if (existingHasil.symptoms) setSymptoms(existingHasil.symptoms);
           if (existingHasil.diagnosis) setDiagnosis(existingHasil.diagnosis);
           if (existingHasil.treatment_plan) setTreatmentPlan(existingHasil.treatment_plan);
@@ -189,18 +196,22 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         setMedications(normalized);
       }
 
-      // Fetch latest monitoring session for this patient
-      const monitoringRes = await fetch(`/api/monitoring/results?patientId=${appointmentObj.ID_Pasien}`);
-      if (monitoringRes.ok) {
-        const monitoringData = await monitoringRes.json();
-        const latestSession = monitoringData.results?.[0];
-        if (latestSession) {
-          // Auto-fill vital signs from latest monitoring session
-          const avgHr = Math.round(latestSession.summary?.heartRate?.average || 0);
-          const avgSpo2 = Math.round(latestSession.summary?.spo2?.average || 0);
-          if (avgHr > 0) setDetakJantung(avgHr);
-          if (avgSpo2 > 0) setKadarOksigen(avgSpo2);
-          console.log('Auto-filled vital signs from monitoring:', { avgHr, avgSpo2 });
+      // Fetch latest completed monitoring session for this patient
+      // Only fetch if no existing vital signs data from Hasil_Pemeriksaan
+      if (!hasExistingVitals) {
+        const monitoringRes = await fetch(`/api/monitoring/session?patientId=${appointmentObj.ID_Pasien}&status=completed&latest=true`);
+        if (monitoringRes.ok) {
+          const monitoringData = await monitoringRes.json();
+          const latestSession = monitoringData.session;
+          if (latestSession) {
+            // Auto-fill vital signs from latest completed monitoring session
+            const avgHr = Math.round(latestSession.avg_heart_rate || 0);
+            const avgSpo2 = Math.round(latestSession.avg_spo2 || 0);
+            
+            if (avgHr > 0) setDetakJantung(avgHr);
+            if (avgSpo2 > 0) setKadarOksigen(avgSpo2);
+            console.log('Auto-filled vital signs from monitoring_sessions:', { avgHr, avgSpo2 });
+          }
         }
       }
     } catch (e) {

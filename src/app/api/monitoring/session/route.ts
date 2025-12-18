@@ -16,6 +16,30 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const sessionId = searchParams.get('sessionId');
+    const patientId = searchParams.get('patientId');
+    const status = searchParams.get('status');
+    const latest = searchParams.get('latest');
+
+    // Get latest completed session for a patient (for examination form)
+    if (patientId && status === 'completed' && latest === 'true') {
+      const [sessions] = await db.query<any[]>(
+        `SELECT 
+          ms.*,
+          k.Nama as doctor_name
+         FROM monitoring_sessions ms
+         LEFT JOIN Karyawan k ON ms.doctor_id = k.ID_karyawan
+         WHERE ms.patient_id = ? AND ms.status = 'completed'
+         ORDER BY ms.ended_at DESC
+         LIMIT 1`,
+        [patientId]
+      );
+
+      if (sessions.length === 0) {
+        return NextResponse.json({ session: null });
+      }
+
+      return NextResponse.json({ session: sessions[0] });
+    }
 
     if (sessionId) {
       // Get specific session
@@ -329,71 +353,8 @@ export async function PUT(request: NextRequest) {
       [avgHr, minHr, maxHr, avgSpo2, minSpo2, maxSpo2, hasAnomaly, notes, sessionId]
     );
 
-    // If appointment_id exists, create or update Hasil_Pemeriksaan
-    if (session.appointment_id) {
-      const vitalNotes = `--- Vital Signs Monitoring ---\n` +
-        `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
-        `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
-        `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`;
-
-      // Check if Hasil_Pemeriksaan exists for this pertemuan
-      const [existingResults] = await db.query<any[]>(
-        `SELECT ID_hasil, notes FROM Hasil_Pemeriksaan WHERE ID_pertemuan = ? LIMIT 1`,
-        [session.appointment_id]
-      );
-
-      if (existingResults.length > 0) {
-        // Update existing Hasil_Pemeriksaan
-        const hasilId = existingResults[0].ID_hasil;
-        const existingNotes = existingResults[0].notes || '';
-        let updatedNotes = existingNotes;
-
-        // If monitoring section doesn't exist, append it
-        if (!existingNotes.includes('--- Vital Signs Monitoring ---')) {
-          updatedNotes = existingNotes ? `${existingNotes}\n\n${vitalNotes}` : vitalNotes;
-        } else {
-          // Replace existing monitoring section
-          updatedNotes = existingNotes.replace(
-            /--- Vital Signs Monitoring ---[\s\S]*?(?=\n\n---|$)/,
-            vitalNotes
-          );
-        }
-
-        await db.query(
-          `UPDATE Hasil_Pemeriksaan
-           SET detak_jantung = ?,
-               kadar_oksigen = ?,
-               notes = ?,
-               updated_at = NOW()
-           WHERE ID_hasil = ?`,
-          [avgHr, avgSpo2, updatedNotes, hasilId]
-        );
-      } else {
-        // Create new Hasil_Pemeriksaan ONLY if it doesn't exist
-        // Use sequential ID instead of timestamp-based to avoid collisions
-        const [countResult] = await db.query<any[]>(
-          'SELECT COUNT(*) as count FROM Hasil_Pemeriksaan'
-        );
-        const count = countResult[0].count || 0;
-        const hasilId = `HSL${String(count + 1).padStart(3, '0')}`;
-
-        // Double-check that this pertemuan still doesn't have a result
-        // (in case of race condition)
-        const [doubleCheck] = await db.query<any[]>(
-          `SELECT ID_hasil FROM Hasil_Pemeriksaan WHERE ID_pertemuan = ? LIMIT 1`,
-          [session.appointment_id]
-        );
-
-        if (doubleCheck.length === 0) {
-          await db.query(
-            `INSERT INTO Hasil_Pemeriksaan
-             (ID_hasil, ID_pertemuan, detak_jantung, kadar_oksigen, notes, status)
-             VALUES (?, ?, ?, ?, ?, 'draft')`,
-            [hasilId, session.appointment_id, avgHr, avgSpo2, vitalNotes]
-          );
-        }
-      }
-    }
+    // DO NOT auto-create/update Hasil_Pemeriksaan here
+    // Doctor will manually fill the form and fetch vital signs from monitoring_sessions
 
     return NextResponse.json({
       message: 'Monitoring session ended successfully',

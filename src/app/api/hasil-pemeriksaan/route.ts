@@ -177,23 +177,25 @@ export async function POST(request: NextRequest) {
       `INSERT INTO Hasil_Pemeriksaan
        (ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, kadar_oksigen, treatment_plan, notes, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, kadar_oksigen, treatment_plan, notes, status || 'completed']
+      [ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, kadar_oksigen, treatment_plan, notes, status || 'draft']
     );
 
-    // Update Pertemuan: set status to 'completed' and Waktu_selesai to current time
-    const currentTime = new Date().toLocaleTimeString('en-GB', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+    // Only update Pertemuan status if explicitly marking as completed
+    if (status === 'completed') {
+      const currentTime = new Date().toLocaleTimeString('en-GB', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
 
-    await query(
-      `UPDATE Pertemuan
-       SET status = 'completed', Waktu_selesai = ?
-       WHERE ID_pertemuan = ?`,
-      [currentTime, ID_pertemuan]
-    );
+      await query(
+        `UPDATE Pertemuan
+         SET status = 'completed', Waktu_selesai = ?
+         WHERE ID_pertemuan = ?`,
+        [currentTime, ID_pertemuan]
+      );
+    }
 
     let totalHargaObat = 0;
 
@@ -320,8 +322,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Always mark as completed when doctor submits the form
-    const finalUpdates = { ...updates, status: 'completed' };
+    // Only set status based on what's explicitly passed in the request
+    // Do NOT automatically mark as completed unless explicitly requested
+    const finalUpdates = { ...updates };
 
     if (Object.keys(finalUpdates).length > 0) {
       const setParts = Object.keys(finalUpdates).map(key => `${key} = ?`);
@@ -394,27 +397,29 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update Pertemuan status to completed when doctor submits
-    const hasilData: any = await query(
-      'SELECT ID_pertemuan FROM Hasil_Pemeriksaan WHERE ID_hasil = ?',
-      [ID_hasil]
-    );
-
-    if (hasilData.length > 0) {
-      const ID_pertemuan = hasilData[0].ID_pertemuan;
-      const currentTime = new Date().toLocaleTimeString('en-GB', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-
-      await query(
-        `UPDATE Pertemuan
-         SET status = 'completed', Waktu_selesai = ?
-         WHERE ID_pertemuan = ?`,
-        [currentTime, ID_pertemuan]
+    // Update Pertemuan status to completed ONLY when explicitly marking as completed
+    if (updates.status === 'completed') {
+      const hasilData: any = await query(
+        'SELECT ID_pertemuan FROM Hasil_Pemeriksaan WHERE ID_hasil = ?',
+        [ID_hasil]
       );
+
+      if (hasilData.length > 0) {
+        const ID_pertemuan = hasilData[0].ID_pertemuan;
+        const currentTime = new Date().toLocaleTimeString('en-GB', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+
+        await query(
+          `UPDATE Pertemuan
+           SET status = 'completed', Waktu_selesai = ?
+           WHERE ID_pertemuan = ?`,
+          [currentTime, ID_pertemuan]
+        );
+      }
     }
 
     return NextResponse.json({ success: true, message: 'Hasil pemeriksaan updated successfully' });
