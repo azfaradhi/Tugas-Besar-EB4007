@@ -11,8 +11,10 @@ SET time_zone = '+07:00';
 DROP TABLE IF EXISTS wearable_data;
 DROP TABLE IF EXISTS UrinTest;
 DROP TABLE IF EXISTS Ronsen;
+DROP TABLE IF EXISTS monitoring_sessions;
 DROP TABLE IF EXISTS Hasil_Obat;
 DROP TABLE IF EXISTS Billing_Farmasi;
+DROP TABLE IF EXISTS Rawat_Inap;
 DROP TABLE IF EXISTS Hasil_Pemeriksaan;
 DROP TABLE IF EXISTS Billing;
 DROP TABLE IF EXISTS Pertemuan;
@@ -222,6 +224,32 @@ CREATE TABLE Hasil_Pemeriksaan (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (ID_pertemuan) REFERENCES Pertemuan(ID_pertemuan) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ================================================================================
+-- TABLE: Rawat_Inap
+-- ================================================================================
+CREATE TABLE Rawat_Inap (
+    ID_rawat_inap VARCHAR(20) PRIMARY KEY,
+    ID_pasien VARCHAR(20) NOT NULL,
+    ID_dokter VARCHAR(20) NOT NULL,
+    ID_hasil VARCHAR(20),
+    ID_ruangan VARCHAR(20),
+    Tanggal_masuk DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Tanggal_keluar DATETIME,
+    Status ENUM('aktif', 'selesai') DEFAULT 'aktif',
+    Diagnosis TEXT,
+    Catatan TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (ID_pasien) REFERENCES Pasien(ID_pasien) ON DELETE CASCADE,
+    FOREIGN KEY (ID_dokter) REFERENCES Karyawan(ID_karyawan) ON DELETE CASCADE,
+    FOREIGN KEY (ID_hasil) REFERENCES Hasil_Pemeriksaan(ID_hasil) ON DELETE SET NULL,
+    FOREIGN KEY (ID_ruangan) REFERENCES Ruangan(ID_ruangan) ON DELETE SET NULL,
+    INDEX idx_pasien (ID_pasien),
+    INDEX idx_dokter (ID_dokter),
+    INDEX idx_status (Status),
+    INDEX idx_tanggal_masuk (Tanggal_masuk)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Inpatient admission records';
 
 -- ================================================================================
 -- TABLE: Hasil_Obat

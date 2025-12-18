@@ -1,9 +1,7 @@
-import DashboardLayout from '@/components/DashboardLayout';
-
-export default function ExaminationLayout({
+export default function PatientDetailLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return <>{children}</>;
 }

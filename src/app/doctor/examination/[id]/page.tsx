@@ -92,6 +92,7 @@ export default function ExaminationPage(_: ExaminationPageProps) {
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [wearableData, setWearableData] = useState<any[]>([]);
+  const [existingHasilId, setExistingHasilId] = useState<string | null>(null);
 
   // form state
   const [detakJantung, setDetakJantung] = useState<number>(0);
@@ -153,6 +154,33 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         setMedicalRecords(data.records || []);
       }
 
+      // Check if there's already a Hasil_Pemeriksaan for this pertemuan
+      let hasExistingVitals = false;
+      const hasilRes = await fetch(`/api/hasil-pemeriksaan?pertemuanId=${appointmentId}`);
+      if (hasilRes.ok) {
+        const hasilData = await hasilRes.json();
+        if (hasilData.hasil_pemeriksaan && hasilData.hasil_pemeriksaan.length > 0) {
+          const existingHasil = hasilData.hasil_pemeriksaan[0];
+          setExistingHasilId(existingHasil.ID_hasil);
+
+          // Pre-fill form with existing data
+          if (existingHasil.detak_jantung) {
+            setDetakJantung(existingHasil.detak_jantung);
+            hasExistingVitals = true;
+          }
+          if (existingHasil.kadar_oksigen) {
+            setKadarOksigen(existingHasil.kadar_oksigen);
+            hasExistingVitals = true;
+          }
+          if (existingHasil.symptoms) setSymptoms(existingHasil.symptoms);
+          if (existingHasil.diagnosis) setDiagnosis(existingHasil.diagnosis);
+          if (existingHasil.treatment_plan) setTreatmentPlan(existingHasil.treatment_plan);
+          if (existingHasil.notes) setNotes(existingHasil.notes);
+
+          console.log('Found existing Hasil_Pemeriksaan, pre-filling form:', existingHasil.ID_hasil);
+        }
+      }
+
       // obat master
       const medRes = await fetch('/api/obat');
       if (medRes.ok) {
@@ -168,18 +196,22 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         setMedications(normalized);
       }
 
-      // Fetch latest monitoring session for this patient
-      const monitoringRes = await fetch(`/api/monitoring/results?patientId=${appointmentObj.ID_Pasien}`);
-      if (monitoringRes.ok) {
-        const monitoringData = await monitoringRes.json();
-        const latestSession = monitoringData.results?.[0];
-        if (latestSession) {
-          // Auto-fill vital signs from latest monitoring session
-          const avgHr = Math.round(latestSession.summary?.heartRate?.average || 0);
-          const avgSpo2 = Math.round(latestSession.summary?.spo2?.average || 0);
-          if (avgHr > 0) setDetakJantung(avgHr);
-          if (avgSpo2 > 0) setKadarOksigen(avgSpo2);
-          console.log('Auto-filled vital signs from monitoring:', { avgHr, avgSpo2 });
+      // Fetch latest completed monitoring session for this patient
+      // Only fetch if no existing vital signs data from Hasil_Pemeriksaan
+      if (!hasExistingVitals) {
+        const monitoringRes = await fetch(`/api/monitoring/session?patientId=${appointmentObj.ID_Pasien}&status=completed&latest=true`);
+        if (monitoringRes.ok) {
+          const monitoringData = await monitoringRes.json();
+          const latestSession = monitoringData.session;
+          if (latestSession) {
+            // Auto-fill vital signs from latest completed monitoring session
+            const avgHr = Math.round(latestSession.avg_heart_rate || 0);
+            const avgSpo2 = Math.round(latestSession.avg_spo2 || 0);
+            
+            if (avgHr > 0) setDetakJantung(avgHr);
+            if (avgSpo2 > 0) setKadarOksigen(avgSpo2);
+            console.log('Auto-filled vital signs from monitoring_sessions:', { avgHr, avgSpo2 });
+          }
         }
       }
     } catch (e) {
@@ -275,41 +307,36 @@ export default function ExaminationPage(_: ExaminationPageProps) {
         })),
       };
 
-      const res = await fetch('/api/hasil-pemeriksaan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      let res;
+      let result;
+
+      if (existingHasilId) {
+        // Update existing Hasil_Pemeriksaan
+        res = await fetch('/api/hasil-pemeriksaan', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ID_hasil: existingHasilId,
+            ...payload
+          }),
+        });
+      } else {
+        // Create new Hasil_Pemeriksaan
+        res = await fetch('/api/hasil-pemeriksaan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (!res.ok) throw new Error('Gagal simpan pemeriksaan');
-      const result = await res.json();
+      result = await res.json();
 
-      // update tabel rekam medis di UI (tanpa reload)
-      setMedicalRecords((prev) => [
-        {
-          ID_hasil: String(result.ID_hasil),
-          diagnosis,
-          symptoms,
-          treatment_plan: treatmentPlan,
-          notes,
-          next_step: nextStep,
-          created_at: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
-
-      // reset form
-      setDiagnosis('');
-      setSymptoms('');
-      setTreatmentPlan('');
-      setNotes('');
-      setNextStep('Rawat Jalan');
-      setLabTestType('');
-      setPrescriptionItems([]);
-      setDetakJantung(0);
-
-      alert('Pemeriksaan berhasil disimpan');
-      // router.push('/dashboard');
+      // Show success message
+      alert(existingHasilId ? 'Pemeriksaan berhasil diupdate' : 'Pemeriksaan berhasil disimpan');
+      
+      // Redirect to dashboard
+      router.push('/dashboard');
     } catch (error) {
       console.error('Error saving examination:', error);
       alert('Gagal menyimpan pemeriksaan');

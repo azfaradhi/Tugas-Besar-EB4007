@@ -78,12 +78,20 @@ export default function StaffRegistrationDashboard({ user }: StaffRegistrationDa
       </div>
 
       <div className="mb-6">
-        <Link
-          href="/registration/new-appointment"
-          className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-        >
-          Daftar Pasien Baru
-        </Link>
+        <div className="flex gap-4">
+          <Link
+            href="/staff/registration/patients"
+            className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+          >
+            Kelola Pasien
+          </Link>
+          <Link
+            href="/staff/registration/users"
+            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+          >
+            Kelola Pengguna
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">

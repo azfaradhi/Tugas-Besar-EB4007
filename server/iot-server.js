@@ -455,105 +455,10 @@ async function endSession(sessionId) {
       avgHr, minHr, maxHr, avgSpo2, minSpo2, maxSpo2, hasAnomaly
     });
 
-    // If appointment_id exists, update Hasil_Pemeriksaan
-    if (session.appointment_id) {
-      console.log(`Looking for examination result with appointment_id: ${session.appointment_id}`);
+    // DO NOT auto-create/update Hasil_Pemeriksaan here
+    // Doctor will manually fill the form and fetch vital signs from monitoring_sessions
 
-      // Check if Hasil_Pemeriksaan exists for this pertemuan
-      const [pertemuan] = await db.query(
-        `SELECT * FROM Pertemuan WHERE ID_pertemuan = ?`,
-        [session.appointment_id]
-      );
-
-      if (pertemuan.length > 0) {
-        console.log(`Found Pertemuan:`, pertemuan[0]);
-
-        // Check if Hasil_Pemeriksaan already exists
-        const [existingResults] = await db.query(
-          `SELECT * FROM Hasil_Pemeriksaan WHERE ID_pertemuan = ?`,
-          [session.appointment_id]
-        );
-
-        if (existingResults.length > 0) {
-          // Update existing Hasil_Pemeriksaan
-          const hasilId = existingResults[0].ID_hasil;
-          console.log(`Updating existing Hasil_Pemeriksaan: ${hasilId}`);
-
-          // Check if notes already contain monitoring data
-          const existingNotes = existingResults[0].notes || '';
-          let updatedNotes = existingNotes;
-
-          // If monitoring section doesn't exist, append it
-          if (!existingNotes.includes('--- Vital Signs Monitoring ---')) {
-            updatedNotes = existingNotes +
-              '\n\n--- Vital Signs Monitoring ---\n' +
-              `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
-              `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
-              `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`;
-          } else {
-            // Replace existing monitoring section
-            updatedNotes = existingNotes.replace(
-              /--- Vital Signs Monitoring ---[\s\S]*?(?=\n\n|$)/,
-              `--- Vital Signs Monitoring ---\n` +
-              `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
-              `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
-              `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`
-            );
-          }
-
-          await db.query(
-            `UPDATE Hasil_Pemeriksaan
-             SET detak_jantung = ?,
-                 kadar_oksigen = ?,
-                 notes = ?,
-                 updated_at = NOW()
-             WHERE ID_hasil = ?`,
-            [avgHr, avgSpo2, updatedNotes, hasilId]
-          );
-          console.log(`Hasil_Pemeriksaan updated successfully`);
-        } else {
-          // Create new Hasil_Pemeriksaan with unique ID
-          let hasilId;
-          let idExists = true;
-          let attempts = 0;
-
-          // Try to generate unique ID (max 10 attempts)
-          while (idExists && attempts < 10) {
-            hasilId = `HP${Date.now()}${Math.floor(Math.random() * 1000)}`;
-            const [checkId] = await db.query(
-              'SELECT ID_hasil FROM Hasil_Pemeriksaan WHERE ID_hasil = ?',
-              [hasilId]
-            );
-            idExists = checkId.length > 0;
-            attempts++;
-            if (idExists) {
-              await new Promise(resolve => setTimeout(resolve, 10)); // Wait 10ms
-            }
-          }
-
-          console.log(`Creating new Hasil_Pemeriksaan: ${hasilId}`);
-
-          await db.query(
-            `INSERT INTO Hasil_Pemeriksaan
-             (ID_hasil, ID_pertemuan, detak_jantung, kadar_oksigen, notes, status)
-             VALUES (?, ?, ?, ?, ?, 'completed')`,
-            [
-              hasilId,
-              session.appointment_id,
-              avgHr,
-              avgSpo2,
-              `--- Vital Signs Monitoring ---\n` +
-              `Heart Rate: ${avgHr} bpm (${minHr}-${maxHr} bpm)\n` +
-              `SpO2: ${avgSpo2}% (${minSpo2}-${maxSpo2}%)\n` +
-              `Anomaly Detected: ${hasAnomaly ? 'Yes' : 'No'}`
-            ]
-          );
-          console.log(`Hasil_Pemeriksaan created successfully`);
-        }
-      } else {
-        console.log(`No Pertemuan found with ID: ${session.appointment_id}`);
-      }
-    } else {
+    if (!session.appointment_id) {
       console.log(`No appointment_id linked to this session`);
     }
 
