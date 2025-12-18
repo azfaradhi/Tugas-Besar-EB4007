@@ -143,11 +143,11 @@ export default function PatientMedicalRecordsPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-gray-600 mb-1">Ronsen</p>
-                    <p className="text-2xl font-bold text-green-600">{record.ronsen?.length || 0}</p>
+                    <p className="text-2xl font-bold text-green-600">{record.treatment_plan == 'ronsen'? 1 : 0}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-gray-600 mb-1">Tes Urin</p>
-                    <p className="text-2xl font-bold text-purple-600">{record.urin_test ? '1' : '0'}</p>
+                    <p className="text-2xl font-bold text-purple-600">{record.treatment_plan == 'urin'? 1 : 0}</p>
                   </div>
                 </div>
               </div>

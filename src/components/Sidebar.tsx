@@ -122,6 +122,15 @@ export default function Sidebar({ user }: SidebarProps) {
             ),
             href: '/patient/inpatient',
           },
+          {
+            label: 'Hasil Lab',
+            icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 15v4m0 0h16m0 0v-4M4 11h8a4 4 0 014 4v4m4-14h-3v3h-2V5h-3V3h3V0h2v3h3v2z" />
+              </svg>
+            ),
+            href: '/patient/lab-results',
+          },
         ];
 
       case 'doctor':

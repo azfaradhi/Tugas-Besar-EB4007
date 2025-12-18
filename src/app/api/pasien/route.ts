@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       'SELECT COUNT(*) as count FROM Pasien'
     );
     const count = countResult[0].count;
-    const ID_pasien = `P${String(count + 1).padStart(6, '0')}`;
+    const ID_pasien = `P${String(count + 1).padStart(3, '0')}`;
 
     const birthDate = new Date(Tanggal_lahir);
     const today = new Date();
