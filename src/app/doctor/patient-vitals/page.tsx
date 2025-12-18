@@ -32,11 +32,6 @@ interface RealtimeData {
   timestamp: string;
 }
 
-interface Patient {
-  ID_pasien: string;
-  Nama: string;
-}
-
 interface MonitoringSession {
   session_id: string;
   patient_id: string;
@@ -51,9 +46,7 @@ export default function DoctorPatientVitalsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Patients and session
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState<string>('');
+  // Session state
   const [activeSession, setActiveSession] = useState<MonitoringSession | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   
@@ -71,6 +64,7 @@ export default function DoctorPatientVitalsPage() {
   const [arduinoError, setArduinoError] = useState('');
 
   const wsRef = useRef<WebSocket | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const maxDataPoints = 30;
 
   // Helper function to format date consistently on client side
@@ -99,6 +93,15 @@ export default function DoctorPatientVitalsPage() {
   useEffect(() => {
     setMounted(true);
     fetchInitialData();
+    
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
   }, []);
 
   const fetchInitialData = async () => {
@@ -143,45 +146,42 @@ export default function DoctorPatientVitalsPage() {
     }
   };
 
-  const handleStartSession = async () => {
-    if (!selectedPatient) {
-      setError('Pilih pasien terlebih dahulu');
-      return;
-    }
-
+  const checkForActiveSession = async () => {
     try {
-      const res = await fetch('/api/monitoring/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patientId: selectedPatient,
-          notes: ''
-        })
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        setError(errorData.error || 'Gagal memulai sesi');
-        return;
+      const sessionRes = await fetch('/api/monitoring/session');
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json();
+        if (sessionData.session) {
+          // New session detected
+          if (!activeSession || sessionData.session.session_id !== activeSession.session_id) {
+            setActiveSession(sessionData.session);
+            connectToSession(sessionData.session);
+          }
+        } else if (activeSession) {
+          // Session ended
+          setActiveSession(null);
+          setIsConnected(false);
+          setRealtimeData(null);
+          setChartData({ hr: [], spo2: [], labels: [] });
+          if (wsRef.current) {
+            wsRef.current.close();
+          }
+        }
       }
-
-      const data = await res.json();
-      setActiveSession(data.session);
-      setError('');
-      
-      // Auto connect to WebSocket
-      setTimeout(() => handleConnect(), 500);
-
     } catch (error) {
-      console.error('Error starting session:', error);
-      setError('Gagal memulai sesi monitoring');
+      console.error('Error checking session:', error);
     }
   };
 
-  const handleConnect = () => {
-    if (!activeSession) return;
+  const connectToSession = (session: MonitoringSession) => {
+    if (!user) return;
 
     try {
+      // Close existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+
       const ws = new WebSocket('ws://localhost:8080');
       wsRef.current = ws;
 
@@ -191,7 +191,7 @@ export default function DoctorPatientVitalsPage() {
           data: {
             userId: user.profileId,
             role: 'doctor',
-            sessionId: activeSession.session_id
+            sessionId: session.session_id
           }
         }));
       };
@@ -241,6 +241,13 @@ export default function DoctorPatientVitalsPage() {
           });
         }
 
+        if (msg.type === 'session_ended') {
+          setActiveSession(null);
+          setIsConnected(false);
+          setRealtimeData(null);
+          setChartData({ hr: [], spo2: [], labels: [] });
+        }
+
         if (msg.type === 'error') {
           setError(msg.message);
         }
@@ -258,47 +265,6 @@ export default function DoctorPatientVitalsPage() {
     } catch (err) {
       console.error('Connection error:', err);
       setError('Gagal membuat koneksi');
-    }
-  };
-
-  const handleEndSession = async () => {
-    if (!activeSession) return;
-
-    if (!confirm('Akhiri sesi monitoring? Data akan disimpan sebagai hasil pemeriksaan.')) {
-      return;
-    }
-
-    try {
-      // Send end session signal via WebSocket
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'end_session' }));
-      }
-
-      // Update session status via API
-      const res = await fetch('/api/monitoring/session', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: activeSession.session_id,
-          notes: ''
-        })
-      });
-
-      if (res.ok) {
-        setActiveSession(null);
-        setIsConnected(false);
-        setRealtimeData(null);
-        setChartData({ hr: [], spo2: [], labels: [] });
-        setSelectedPatient('');
-        
-        if (wsRef.current) {
-          wsRef.current.close();
-        }
-      }
-
-    } catch (error) {
-      console.error('Error ending session:', error);
-      setError('Gagal mengakhiri sesi');
     }
   };
 
@@ -393,7 +359,7 @@ export default function DoctorPatientVitalsPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Monitor Vital Signs Pasien</h1>
-          <p className="text-gray-600 mt-1">Real-time monitoring dengan MAX30102</p>
+          <p className="text-gray-600 mt-1">Real-time monitoring dengan MAX30102 (Passive Viewer)</p>
         </div>
 
         {error && (
@@ -403,39 +369,18 @@ export default function DoctorPatientVitalsPage() {
         )}
 
         {!activeSession ? (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Mulai Sesi Monitoring</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pilih Pasien
-                </label>
-                <select
-                  value={selectedPatient}
-                  onChange={(e) => setSelectedPatient(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">-- Pilih Pasien --</option>
-                  {patients.map((patient) => (
-                    <option key={patient.ID_pasien} value={patient.ID_pasien}>
-                      {patient.Nama} ({patient.ID_pasien})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                onClick={handleStartSession}
-                disabled={!selectedPatient}
-                className={`px-6 py-3 rounded-lg font-medium ${
-                  selectedPatient
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                Mulai Sesi Monitoring
-              </button>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="text-6xl mb-4">⏳</div>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+                Menunggu Pasien Memulai Monitoring
+              </h2>
+              <p className="text-gray-600">
+                Sesi monitoring akan dimulai otomatis ketika pasien menekan tombol "Mulai Monitoring" di halaman mereka.
+              </p>
+              <p className="text-sm text-blue-600 mt-4">
+                ✓ Status diperbarui setiap 5 detik secara otomatis
+              </p>
             </div>
           </div>
         ) : (
@@ -447,7 +392,7 @@ export default function DoctorPatientVitalsPage() {
                     Sesi Monitoring Aktif
                   </h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    Pasien: {activeSession.patient_name}
+                    Pasien: <strong>{activeSession.patient_name}</strong>
                   </p>
                   {mounted && (
                     <p className="text-xs text-gray-500">
@@ -472,21 +417,9 @@ export default function DoctorPatientVitalsPage() {
                     </span>
                   </div>
 
-                  {!isConnected && (
-                    <button
-                      onClick={handleConnect}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Connect
-                    </button>
-                  )}
-
-                  <button
-                    onClick={handleEndSession}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                  >
-                    Akhiri Sesi
-                  </button>
+                  <div className="text-sm text-gray-500 italic">
+                    (Pasien mengendalikan sesi)
+                  </div>
                 </div>
               </div>
 
