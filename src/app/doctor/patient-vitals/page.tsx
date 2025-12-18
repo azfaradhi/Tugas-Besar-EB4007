@@ -2,268 +2,497 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { WearableData } from '@/types';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 
-interface PatientWithVitals {
-  ID_pasien: string;
-  Nama: string;
-  latest_heart_rate?: string;
-  latest_spo2?: string;
-  hr_status?: string;
-  spo2_status?: string;
-  latest_measurement_time?: string;
-  is_live?: boolean; // To indicate real-time data
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+interface RealtimeData {
+  heart_rate: number;
+  spo2: number;
+  hr_status: string;
+  spo2_status: string;
+  timestamp: string;
 }
 
-export default function PatientVitalsPage() {
+interface MonitoringSession {
+  session_id: string;
+  patient_id: string;
+  patient_name: string;
+  status: string;
+  started_at: string;
+}
+
+export default function DoctorPatientVitalsPage() {
   const router = useRouter();
-  const [patients, setPatients] = useState<PatientWithVitals[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState<string>('');
-  const [measurements, setMeasurements] = useState<WearableData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
-  const [error, setError] = useState('');
   const [user, setUser] = useState<any>(null);
-  const [userLoading, setUserLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
+  // Session state
+  const [activeSession, setActiveSession] = useState<MonitoringSession | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  
+  // Real-time data
+  const [realtimeData, setRealtimeData] = useState<RealtimeData | null>(null);
+  const [chartData, setChartData] = useState<{hr: number[], spo2: number[], labels: string[]}>({
+    hr: [],
+    spo2: [],
+    labels: []
+  });
+  const [mounted, setMounted] = useState(false);
 
-  // Fetch current user
+  // Arduino state
+  const [arduinoConnected, setArduinoConnected] = useState(false);
+  const [arduinoError, setArduinoError] = useState('');
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const maxDataPoints = 30;
+
+  // Helper function to format date consistently on client side
+  const formatDateTime = (dateString: string) => {
+    if (!mounted) return '';
+    const date = new Date(dateString);
+    return date.toLocaleString('id-ID', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  const formatTime = () => {
+    const now = new Date();
+    return now.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        setUserLoading(true);
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user.role !== 'doctor') {
-            router.push('/dashboard');
-            return;
-          }
-          setUser(data.user);
-        } else {
-          router.push('/login');
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-        router.push('/login');
-      } finally {
-        setUserLoading(false);
-      }
-    };
-    fetchUser();
-  }, [router]);
-
-  // Fetch initial patients data
-  useEffect(() => {
-    if (userLoading) return;
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    const fetchPatients = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const res = await fetch('/api/patients');
-        if (!res.ok) throw new Error('Failed to fetch patients');
-        const patientsData = await res.json();
-        setPatients(patientsData);
-      } catch (error) {
-        console.error('Error fetching patients:', error);
-        setError('Gagal memuat data pasien');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPatients();
-  }, [user, userLoading]);
-
-  // WebSocket for real-time updates
-  useEffect(() => {
-    const ws = new WebSocket('ws://localhost:8080');
-    ws.onopen = () => console.log('Doctor dashboard connected to WebSocket');
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.patientId && (data.heart_rate || data.spo2)) {
-          setPatients(prevPatients => 
-            prevPatients.map(p => {
-              if (p.ID_pasien === data.patientId) {
-                return {
-                  ...p,
-                  latest_heart_rate: data.heart_rate?.toString() || p.latest_heart_rate,
-                  latest_spo2: data.spo2?.toString() || p.latest_spo2,
-                  latest_measurement_time: new Date().toISOString(),
-                  is_live: true
-                };
-              }
-              return p;
-            })
-          );
-        }
-      } catch (e) {
-        console.error('Error parsing WebSocket message:', e);
-      }
-    };
-    ws.onerror = (err) => console.error('WebSocket error:', err);
-    ws.onclose = () => console.log('WebSocket disconnected');
-
+    setMounted(true);
+    fetchInitialData();
+    
     return () => {
-      ws.close();
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
   }, []);
 
-  // Fetch measurements for selected patient
-  useEffect(() => {
-    if (!selectedPatient) return;
-    const fetchMeasurements = async () => {
-      try {
-        setLoadingMeasurements(true);
-        const res = await fetch(`/api/wearable?patientId=${selectedPatient}`);
-        if (res.ok) {
-          const result = await res.json();
-          setMeasurements(result.data || []);
-        } else {
-          setError('Gagal memuat data pengukuran');
-        }
-      } catch (error) {
-        console.error('Error fetching measurements:', error);
-        setError('Terjadi kesalahan saat memuat data');
-      } finally {
-        setLoadingMeasurements(false);
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true);
+      
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) {
+        router.push('/login');
+        return;
       }
-    };
-    fetchMeasurements();
-  }, [selectedPatient]);
+      
+      const data = await res.json();
+      if (data.user.role !== 'doctor') {
+        router.push('/dashboard');
+        return;
+      }
+      setUser(data.user);
 
-  const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'critical': return 'bg-red-500 text-white';
-      case 'warning': return 'bg-yellow-500 text-white';
-      case 'normal': return 'bg-green-500 text-white';
-      default: return 'bg-gray-500 text-white';
+      // Fetch patients
+      const patientsRes = await fetch('/api/patients');
+      if (patientsRes.ok) {
+        const patientsData = await patientsRes.json();
+        setPatients(patientsData.patients || []);
+      }
+
+      // Check for active session
+      const sessionRes = await fetch('/api/monitoring/session');
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json();
+        if (sessionData.session) {
+          setActiveSession(sessionData.session);
+          setSelectedPatient(sessionData.session.patient_id);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError('Gagal memuat data');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getStatusLabel = (status?: string) => {
-    switch (status) {
-      case 'critical': return 'Kritis';
-      case 'warning': return 'Peringatan';
-      case 'normal': return 'Normal';
-      default: return '-';
+  const checkForActiveSession = async () => {
+    try {
+      const sessionRes = await fetch('/api/monitoring/session');
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json();
+        if (sessionData.session) {
+          // New session detected
+          if (!activeSession || sessionData.session.session_id !== activeSession.session_id) {
+            setActiveSession(sessionData.session);
+            connectToSession(sessionData.session);
+          }
+        } else if (activeSession) {
+          // Session ended
+          setActiveSession(null);
+          setIsConnected(false);
+          setRealtimeData(null);
+          setChartData({ hr: [], spo2: [], labels: [] });
+          if (wsRef.current) {
+            wsRef.current.close();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking session:', error);
     }
   };
 
-  if (userLoading || loading) {
+  const connectToSession = (session: MonitoringSession) => {
+    if (!user) return;
+
+    try {
+      // Close existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+
+      const ws = new WebSocket('ws://localhost:8080');
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          type: 'connect',
+          data: {
+            userId: user.profileId,
+            role: 'doctor',
+            sessionId: session.session_id
+          }
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+
+        if (msg.type === 'connected') {
+          setIsConnected(true);
+          setError('');
+        }
+
+        if (msg.type === 'arduino_status') {
+          if (msg.status === 'connected' || msg.status === 'ready') {
+            setArduinoConnected(true);
+            setArduinoError('');
+          } else if (msg.status === 'disconnected' || msg.status === 'error') {
+            setArduinoConnected(false);
+          }
+        }
+
+        if (msg.type === 'arduino_error') {
+          setArduinoError(msg.error);
+        }
+
+        if (msg.type === 'vitals') {
+          setRealtimeData(msg.data);
+          // Clear errors when receiving valid data
+          if (arduinoError === 'No finger detected') {
+            setArduinoError('');
+          }
+
+          // Update chart
+          setChartData(prev => {
+            const newHr = [...prev.hr, msg.data.heart_rate];
+            const newSpo2 = [...prev.spo2, msg.data.spo2];
+            const newLabels = [...prev.labels, formatTime()];
+
+            // Keep only last N data points
+            if (newHr.length > maxDataPoints) {
+              newHr.shift();
+              newSpo2.shift();
+              newLabels.shift();
+            }
+
+            return { hr: newHr, spo2: newSpo2, labels: newLabels };
+          });
+        }
+
+        if (msg.type === 'session_ended') {
+          setActiveSession(null);
+          setIsConnected(false);
+          setRealtimeData(null);
+          setChartData({ hr: [], spo2: [], labels: [] });
+        }
+
+        if (msg.type === 'error') {
+          setError(msg.message);
+        }
+      };
+
+      ws.onerror = () => {
+        setError('Gagal terhubung ke server monitoring');
+        setIsConnected(false);
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+      };
+
+    } catch (err) {
+      console.error('Connection error:', err);
+      setError('Gagal membuat koneksi');
+    }
+  };
+
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case 'critical': return 'bg-red-500';
+      case 'warning': return 'bg-yellow-500';
+      case 'normal': return 'bg-green-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index' as const,
+      intersect: false,
+    },
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: false,
+      },
+    },
+    scales: {
+      y: {
+        type: 'linear' as const,
+        display: true,
+        position: 'left' as const,
+        min: 40,
+        max: 140,
+        title: {
+          display: true,
+          text: 'Heart Rate (bpm)'
+        }
+      },
+      y1: {
+        type: 'linear' as const,
+        display: true,
+        position: 'right' as const,
+        min: 85,
+        max: 100,
+        grid: {
+          drawOnChartArea: false,
+        },
+        title: {
+          display: true,
+          text: 'SpO2 (%)'
+        }
+      },
+    },
+  };
+
+  const chartDataConfig = {
+    labels: chartData.labels,
+    datasets: [
+      {
+        label: 'Heart Rate',
+        data: chartData.hr,
+        borderColor: 'rgb(239, 68, 68)',
+        backgroundColor: 'rgba(239, 68, 68, 0.5)',
+        yAxisID: 'y',
+        tension: 0.3,
+      },
+      {
+        label: 'SpO2',
+        data: chartData.spo2,
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+        yAxisID: 'y1',
+        tension: 0.3,
+      },
+    ],
+  };
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center p-6">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">{userLoading ? 'Memuat data user...' : 'Memuat data pasien...'}</p>
+          <p className="mt-4 text-gray-600">Memuat data...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
           <h1 className="text-3xl font-bold text-gray-900">Monitor Vital Signs Pasien</h1>
-          <p className="text-gray-600 mt-1">Lihat hasil pengukuran Heart Rate & SpO2 dari MAX30102</p>
+          <p className="text-gray-600 mt-1">Real-time monitoring dengan MAX30102 (Passive Viewer)</p>
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">{error}</div>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {error}
+          </div>
+        )}
 
-        <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-200"><h2 className="text-lg font-semibold text-gray-900">Daftar Pasien</h2></div>
-          {patients.length === 0 ? (
-            <div className="text-center py-12"><p className="text-gray-500">Belum ada data pasien</p></div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pasien</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Heart Rate</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SpO2</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Terakhir</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {patients.map((patient) => (
-                    <tr key={patient.ID_pasien} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {patient.is_live && <span className="mr-2 h-3 w-3 rounded-full bg-green-500 animate-pulse"></span>}
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{patient.Nama}</div>
-                            <div className="text-sm text-gray-500">{patient.ID_pasien}</div>
+        {!activeSession ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="text-6xl mb-4">⏳</div>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+                Menunggu Pasien Memulai Monitoring
+              </h2>
+              <p className="text-gray-600">
+                Sesi monitoring akan dimulai otomatis ketika pasien menekan tombol "Mulai Monitoring" di halaman mereka.
+              </p>
+              <p className="text-sm text-blue-600 mt-4">
+                ✓ Status diperbarui setiap 5 detik secara otomatis
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="flex items-center justify-between pb-4 border-b">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Sesi Monitoring Aktif
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Pasien: <strong>{activeSession.patient_name}</strong>
+                  </p>
+                  {mounted && (
+                    <p className="text-xs text-gray-500">
+                      Dimulai: {formatDateTime(activeSession.started_at)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                    isConnected 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full ${
+                      isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                    }`}></div>
+                    <span className={`text-sm font-medium ${
+                      isConnected ? 'text-green-700' : 'text-gray-600'
+                    }`}>
+                      {isConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+
+                  <div className="text-sm text-gray-500 italic">
+                    (Pasien mengendalikan sesi)
+                  </div>
+                </div>
+              </div>
+
+              {isConnected && (
+                <div className="mt-6 space-y-6">
+                  {/* Arduino Error Messages */}
+                  {arduinoError && (
+                    <div className={`p-4 rounded-lg border-l-4 ${
+                      arduinoError === 'MAX30102 not found'
+                        ? 'bg-red-50 border-red-500 text-red-800'
+                        : arduinoError === 'No finger detected'
+                        ? 'bg-yellow-50 border-yellow-500 text-yellow-800'
+                        : 'bg-orange-50 border-orange-500 text-orange-800'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                          <p className="font-semibold">
+                            {arduinoError === 'MAX30102 not found' && 'Sensor MAX30102 Tidak Terdeteksi'}
+                            {arduinoError === 'No finger detected' && 'Jari Pasien Tidak Terdeteksi'}
+                            {arduinoError !== 'MAX30102 not found' && arduinoError !== 'No finger detected' && 'Peringatan Arduino'}
+                          </p>
+                          <p className="text-sm mt-1">
+                            {arduinoError === 'MAX30102 not found' && 'Sensor tidak terhubung dengan benar ke Arduino'}
+                            {arduinoError === 'No finger detected' && 'Minta pasien untuk meletakkan jari pada sensor'}
+                            {arduinoError !== 'MAX30102 not found' && arduinoError !== 'No finger detected' && arduinoError}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {realtimeData && (
+                  <><div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Heart Rate</p>
+                              <p className="text-4xl font-bold text-gray-900 mt-1">
+                                {realtimeData.heart_rate}
+                                <span className="text-lg text-gray-500 ml-1">bpm</span>
+                              </p>
+                            </div>
+                            <div className={`w-3 h-3 rounded-full ${getStatusColor(realtimeData.hr_status)}`}></div>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {patient.latest_heart_rate ? (
-                          <span className="text-sm font-medium text-gray-900">{patient.latest_heart_rate} bpm</span>
-                        ) : (<span className="text-sm text-gray-400">-</span>)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {patient.latest_spo2 ? (
-                          <span className="text-sm font-medium text-gray-900">{patient.latest_spo2}%</span>
-                        ) : (<span className="text-sm text-gray-400">-</span>)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {patient.latest_measurement_time ? new Date(patient.latest_measurement_time).toLocaleString('id-ID') : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button onClick={() => setSelectedPatient(patient.ID_pasien)} className="text-blue-600 hover:text-blue-900 font-medium">
-                          Lihat Detail
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
 
-        {selectedPatient && (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">Riwayat Pengukuran - {patients.find(p => p.ID_pasien === selectedPatient)?.Nama}</h2>
-              <button onClick={() => setSelectedPatient('')} className="text-gray-500 hover:text-gray-700">✕ Tutup</button>
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">SpO2</p>
+                              <p className="text-4xl font-bold text-gray-900 mt-1">
+                                {realtimeData.spo2}
+                                <span className="text-lg text-gray-500 ml-1">%</span>
+                              </p>
+                            </div>
+                            <div className={`w-3 h-3 rounded-full ${getStatusColor(realtimeData.spo2_status)}`}></div>
+                          </div>
+                        </div>
+                      </div><div className="bg-white border border-gray-200 rounded-lg p-4">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            Grafik Real-time (30 detik terakhir)
+                          </h3>
+                          <div style={{ height: '300px' }}>
+                            <Line options={chartOptions} data={chartDataConfig} />
+                          </div>
+                        </div></>
+                  )}
+                </div>
+              )}
             </div>
-            {loadingMeasurements ? (
-              <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div><p className="mt-4 text-gray-600">Memuat data...</p></div>
-            ) : measurements.length === 0 ? (
-              <div className="text-center py-12"><p className="text-gray-500">Belum ada data pengukuran untuk pasien ini</p></div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nilai</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {measurements.map((measurement, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(measurement.measured_at).toLocaleString('id-ID')}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{measurement.measurement_type === 'heart_rate' ? 'Heart Rate' : 'SpO2'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{measurement.value} {measurement.unit}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(measurement.status)}`}>{getStatusLabel(measurement.status)}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         )}
       </div>

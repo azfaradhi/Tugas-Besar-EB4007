@@ -214,6 +214,7 @@ CREATE TABLE Hasil_Pemeriksaan (
     diagnosis TEXT,
     symptoms TEXT,
     detak_jantung INT,
+    kadar_oksigen DECIMAL(5,2),
     treatment_plan TEXT,
     notes TEXT,
     status ENUM('draft','completed') DEFAULT 'completed',
@@ -301,18 +302,74 @@ CREATE TABLE Billing_Farmasi (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ================================================================================
+-- TABLE: monitoring_sessions
+-- ================================================================================
+CREATE TABLE monitoring_sessions (
+    session_id VARCHAR(50) PRIMARY KEY,
+    patient_id VARCHAR(20) NOT NULL,
+    doctor_id VARCHAR(20) NOT NULL,
+    appointment_id VARCHAR(20),
+    status ENUM('active', 'completed', 'cancelled') DEFAULT 'active',
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP NULL,
+    avg_heart_rate DECIMAL(10,2),
+    min_heart_rate DECIMAL(10,2),
+    max_heart_rate DECIMAL(10,2),
+    avg_spo2 DECIMAL(10,2),
+    min_spo2 DECIMAL(10,2),
+    max_spo2 DECIMAL(10,2),
+    has_anomaly BOOLEAN DEFAULT FALSE,
+    notes TEXT,
+    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien),
+    FOREIGN KEY (doctor_id) REFERENCES Karyawan(ID_karyawan),
+    INDEX idx_status (status),
+    INDEX idx_patient (patient_id),
+    INDEX idx_doctor (doctor_id),
+    INDEX idx_started_at (started_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='IoT monitoring sessions for real-time health monitoring';
+
+-- ================================================================================
 -- TABLE: wearable_data
 -- ================================================================================
 CREATE TABLE wearable_data (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(50),
     patient_id VARCHAR(20) NOT NULL,
     measurement_type ENUM('heart_rate','spo2'),
     value DECIMAL(10,2),
     unit VARCHAR(10),
-    measured_at DATETIME,
-    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    status ENUM('normal', 'warning', 'critical'),
+    measured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES monitoring_sessions(session_id) ON DELETE SET NULL,
+    FOREIGN KEY (patient_id) REFERENCES Pasien(ID_pasien),
+    INDEX idx_session (session_id),
+    INDEX idx_patient (patient_id),
+    INDEX idx_measured_at (measured_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Time-series data from wearable IoT devices (stored every 5 seconds)';
 
 -- ================================================================================
 -- END OF SCHEMA
 -- ================================================================================
+
+
+-- Migration: Add kadar_oksigen column to Hasil_Pemeriksaan table
+-- Date: 2025-12-18
+
+-- Check if column exists before adding
+SET @dbname = DATABASE();
+SET @tablename = "Hasil_Pemeriksaan";
+SET @columnname = "kadar_oksigen";
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (table_name = @tablename)
+      AND (table_schema = @dbname)
+      AND (column_name = @columnname)
+  ) > 0,
+  "SELECT 1",
+  CONCAT("ALTER TABLE ", @tablename, " ADD ", @columnname, " DECIMAL(5,2) AFTER detak_jantung")
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;

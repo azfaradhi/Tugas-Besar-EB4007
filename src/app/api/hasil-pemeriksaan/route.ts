@@ -151,6 +151,7 @@ export async function POST(request: NextRequest) {
       diagnosis,
       symptoms,
       detak_jantung,
+      kadar_oksigen,
       treatment_plan,
       notes,
       status,
@@ -174,9 +175,9 @@ export async function POST(request: NextRequest) {
 
     await query(
       `INSERT INTO Hasil_Pemeriksaan
-       (ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, treatment_plan, notes, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, treatment_plan, notes, status || 'completed']
+       (ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, kadar_oksigen, treatment_plan, notes, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ID_hasil, ID_pertemuan, diagnosis, symptoms, detak_jantung, kadar_oksigen, treatment_plan, notes, status || 'completed']
     );
 
     // Update Pertemuan: set status to 'completed' and Waktu_selesai to current time
